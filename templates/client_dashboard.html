@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Meu inventário{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ company.name }}</div>
+    <div class="page-sub">IGEE {{ company.base_year }} · GHG Protocol · Seu inventário</div>
+  </div>
+  <a href="{{ url_for('client_new_entry') }}" class="btn btn-primary btn-sm">+ Lançar dados</a>
+</div>
+
+<div style="background:var(--blue-light);border:1px solid #B5D4F4;border-radius:8px;padding:10px 14px;font-size:13px;color:var(--blue-text);display:flex;align-items:center;gap:8px;margin-bottom:18px;">
+  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Você está visualizando o inventário em andamento. Para enviar dados ou tirar dúvidas, use os botões abaixo.
+</div>
+
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-label">Total de emissões</div>
+    <div class="metric-value">{{ "%.2f"|format(total) }}</div>
+    <div class="metric-unit">tCO₂e</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Escopo 1 — Diretas</div>
+    <div class="metric-value">{{ "%.2f"|format(scope_totals[1]) }}</div>
+    <div class="metric-unit">tCO₂e</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Escopo 2 — Energia</div>
+    <div class="metric-value">{{ "%.2f"|format(scope_totals[2]) }}</div>
+    <div class="metric-unit">tCO₂e</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Escopo 3 — Cadeia</div>
+    <div class="metric-value">{{ "%.2f"|format(scope_totals[3]) }}</div>
+    <div class="metric-unit">tCO₂e</div>
+  </div>
+</div>
+
+{% if emissions %}
+<div class="card">
+  <div class="card-title">Fontes levantadas</div>
+  <table>
+    <thead><tr><th>Fonte</th><th>Escopo</th><th>Categoria</th><th>tCO₂e</th><th>Período</th></tr></thead>
+    <tbody>
+    {% for e in emissions %}
+    <tr>
+      <td style="font-weight:500;">{{ e.source_name }}</td>
+      <td><span class="scope-pill s{{ e.scope }}">E{{ e.scope }}</span></td>
+      <td style="font-size:12px;color:var(--text2);">{{ e.category }}</td>
+      <td style="font-weight:600;color:var(--green-text);">{{ "%.4f"|format(e.total_co2e) }}</td>
+      <td style="font-size:12px;color:var(--text3);">{{ e.period or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card"><div class="empty-state">Nenhuma emissão lançada ainda. A consultoria realizará os lançamentos em breve.</div></div>
+{% endif %}
+
+{% if activities %}
+<div class="card">
+  <div class="card-title">Histórico do inventário</div>
+  {% for a in activities %}
+  <div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+    <div style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;margin-top:5px;"></div>
+    <div style="flex:1;">
+      <div style="font-size:13px;">{% if a.user %}<strong>{{ a.user.name }}</strong> — {% endif %}{{ a.action }}</div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);white-space:nowrap;">{{ a.created_at.strftime('%d/%m %H:%M') }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

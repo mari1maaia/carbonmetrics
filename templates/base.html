@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}InterMetrics{% endblock %} · Interbio</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green: #2DBD8F;
+      --green-dark: #1A9A72;
+      --green-light: #E8F8F3;
+      --green-text: #0F6E52;
+      --yellow: #E8C840;
+      --yellow-light: #FDFAE8;
+      --yellow-text: #8A7200;
+      --blue: #378ADD; --blue-light: #E6F1FB; --blue-text: #185FA5;
+      --amber: #BA7517; --amber-light: #FAEEDA; --amber-text: #854F0B;
+      --red: #E24B4A; --red-light: #FCEBEB; --red-text: #A32D2D;
+      --gray: #888780; --bg: #F4F7F5; --surface: #fff;
+      --border: rgba(0,0,0,.09);
+      --text: #1a1a18; --text2: #5a5a57; --text3: #999994;
+      --radius: 10px; --radius-sm: 6px;
+      --shadow: 0 1px 4px rgba(0,0,0,.07);
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; min-height: 100vh; }
+    a { color: var(--green-dark); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* TOPBAR */
+    .topbar { background: var(--surface); border-bottom: 2px solid var(--green); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+    .topbar-logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .topbar-logo img { height: 34px; object-fit: contain; }
+    .topbar-divider { height: 28px; width: 1px; background: var(--border); }
+    .topbar-appname { font-size: 14px; font-weight: 600; color: var(--text); }
+    .topbar-appsub { font-size: 10px; color: var(--text3); }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .avatar-admin { background: var(--green-light); color: var(--green-text); border: 1.5px solid var(--green); }
+    .avatar-client { background: var(--blue-light); color: var(--blue-text); border: 1.5px solid var(--blue); }
+    .topbar-name { font-size: 13px; font-weight: 500; }
+    .topbar-role { font-size: 10px; color: var(--text3); }
+    .role-badge { font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+    .role-badge-admin { background: var(--green-light); color: var(--green-text); border: 1px solid var(--green); }
+    .role-badge-client { background: var(--blue-light); color: var(--blue-text); border: 1px solid var(--blue); }
+    .btn-logout { font-size: 12px; padding: 5px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text2); cursor: pointer; transition: all .15s; }
+    .btn-logout:hover { background: var(--bg); border-color: var(--red); color: var(--red-text); }
+
+    /* LAYOUT */
+    .layout { display: flex; min-height: calc(100vh - 56px); }
+    .sidebar { width: 215px; background: var(--surface); border-right: 1px solid var(--border); padding: 16px 0; flex-shrink: 0; box-shadow: var(--shadow); }
+    .sidebar-section { padding: 0 10px; margin-bottom: 4px; }
+    .sidebar-label { font-size: 10px; color: var(--text3); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 10px 10px 4px; }
+    .nav-link { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text2); cursor: pointer; transition: all .15s; text-decoration: none; }
+    .nav-link:hover { background: var(--green-light); color: var(--green-text); text-decoration: none; }
+    .nav-link.active { background: var(--green-light); color: var(--green-text); font-weight: 600; border-left: 3px solid var(--green); }
+    .nav-link svg { width: 15px; height: 15px; flex-shrink: 0; }
+    .sidebar-divider { height: 1px; background: var(--border); margin: 8px 10px; }
+    .main { flex: 1; padding: 24px; overflow: auto; max-width: 1200px; }
+
+    /* ALERTS */
+    .flash-container { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .flash { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .flash-success { background: var(--green-light); border: 1px solid var(--green); color: var(--green-text); }
+    .flash-error { background: var(--red-light); border: 1px solid #F7C1C1; color: var(--red-text); }
+    .flash-info { background: var(--blue-light); border: 1px solid #B5D4F4; color: var(--blue-text); }
+
+    /* COMPONENTS */
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+    .page-title { font-size: 21px; font-weight: 700; color: var(--text); }
+    .page-sub { font-size: 13px; color: var(--text2); margin-top: 3px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); }
+    .card-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+    .metric::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--green); }
+    .metric.s1::before { background: var(--green); }
+    .metric.s2::before { background: var(--blue); }
+    .metric.s3::before { background: var(--amber); }
+    .metric.total::before { background: linear-gradient(90deg, var(--green), var(--yellow)); }
+    .metric-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+    .metric-value { font-size: 24px; font-weight: 700; color: var(--text); }
+    .metric-unit { font-size: 11px; color: var(--text2); margin-top: 3px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all .15s; text-decoration: none; }
+    .btn:hover { text-decoration: none; opacity: .9; }
+    .btn-primary { background: var(--green); color: #fff; border-color: var(--green); }
+    .btn-primary:hover { background: var(--green-dark); }
+    .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
+    .btn-secondary:hover { background: var(--bg); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .scope-pill { font-size: 10px; padding: 2px 9px; border-radius: 20px; font-weight: 600; }
+    .s1 { background: var(--green-light); color: var(--green-text); }
+    .s2 { background: var(--blue-light); color: var(--blue-text); }
+    .s3 { background: var(--amber-light); color: var(--amber-text); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 9px 12px; font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; border-bottom: 2px solid var(--border); background: var(--bg); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--green-light); }
+    .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .form-label { font-size: 12px; font-weight: 600; color: var(--text2); }
+    .form-input { font-size: 13px; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); transition: border .15s; }
+    .form-input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(45,189,143,.12); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-hint { font-size: 11px; color: var(--text3); margin-top: 3px; line-height: 1.5; }
+    .form-help { font-size: 11px; color: var(--green-text); background: var(--green-light); border-radius: 5px; padding: 6px 9px; margin-top: 4px; line-height: 1.5; border-left: 3px solid var(--green); }
+    .progress-bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; background: var(--green); }
+    .status-pill { font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+    .status-andamento { background: var(--amber-light); color: var(--amber-text); }
+    .status-concluido { background: var(--green-light); color: var(--green-text); }
+    .status-revisao { background: var(--blue-light); color: var(--blue-text); }
+    .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .filter-bar select, .filter-bar input { font-size: 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+    .filter-bar select:focus, .filter-bar input:focus { outline: none; border-color: var(--green); }
+    .badge-revisao { font-size:10px; padding:2px 8px; border-radius:20px; background:var(--yellow-light); color:var(--yellow-text); border:1px solid var(--yellow); font-weight:600; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="topbar-logo" href="{{ url_for('index') }}">
+    <img src="{{ url_for('static', filename='intermetrics.png') }}" alt="InterMetrics" style="height:40px;object-fit:contain;">
+    <div class="topbar-divider"></div>
+    <div>
+      <div class="topbar-appname">InterMetrics</div>
+      <div class="topbar-appsub">Inventário GEE · GHG Protocol</div>
+    </div>
+  </a>
+  {% if current_user.is_authenticated %}
+  <div class="topbar-right">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="avatar {{ 'avatar-admin' if current_user.role == 'admin' else 'avatar-client' }}">
+        {{ current_user.name[:2].upper() }}
+      </div>
+      <div>
+        <div class="topbar-name">{{ current_user.name }}</div>
+        <div class="topbar-role">{{ current_user.company.name if current_user.company else 'InterMetrics · Interbio & InterGreen' }}</div>
+      </div>
+    </div>
+    <span class="role-badge {{ 'role-badge-admin' if current_user.role == 'admin' else 'role-badge-client' }}">
+      {{ 'Admin' if current_user.role == 'admin' else 'Cliente' }}
+    </span>
+    <a href="{{ url_for('logout') }}" class="btn-logout">Sair</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if current_user.is_authenticated %}
+<div class="layout">
+  <nav class="sidebar">
+    {% if current_user.role == 'admin' %}
+    <div class="sidebar-section">
+      <div class="sidebar-label">Visão geral</div>
+      <a href="{{ url_for('admin_dashboard') }}" class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Clientes
+      </a>
+      <a href="{{ url_for('admin_dashboard_full') }}" class="nav-link {% if request.endpoint == 'admin_dashboard_full' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Dashboard & filtros
+      </a>
+      <a href="{{ url_for('admin_users') }}" class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Usuários
+      </a>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Ações</div>
+      <a href="{{ url_for('new_company') }}" class="nav-link {% if request.endpoint == 'new_company' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Novo cliente
+      </a>
+      <a href="{{ url_for('admin_new_entry') }}" class="nav-link {% if request.endpoint == 'admin_new_entry' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Lançar emissão
+      </a>
+    </div>
+    {% else %}
+    <div class="sidebar-section">
+      <div class="sidebar-label">Meu inventário</div>
+      <a href="{{ url_for('client_dashboard') }}" class="nav-link {% if request.endpoint == 'client_dashboard' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Resumo
+      </a>
+      <a href="{{ url_for('client_dashboard_full') }}" class="nav-link {% if request.endpoint == 'client_dashboard_full' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Dashboard & filtros
+      </a>
+      <a href="{{ url_for('client_new_entry') }}" class="nav-link {% if request.endpoint == 'client_new_entry' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Lançar dados
+      </a>
+      <a href="{{ url_for('client_history') }}" class="nav-link {% if request.endpoint == 'client_history' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Histórico por ano
+      </a>
+    </div>
+    {% endif %}
+  </nav>
+
+  <main class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+      {% for category, message in messages %}
+      <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
+</body>
+</html>

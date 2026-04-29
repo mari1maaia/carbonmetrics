@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block auth_content %}
+<style>
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f0f9f5 0%,#e8f4f0 100%);padding:24px;}
+  .auth-card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:16px;padding:36px 36px 28px;width:100%;max-width:420px;box-shadow:0 4px 24px rgba(0,0,0,.08);}
+  .logos-row{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:8px;}
+  .logo-divider{width:1px;height:48px;background:rgba(0,0,0,.12);}
+  .platform-tag{text-align:center;font-size:11px;color:#999;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid rgba(0,0,0,.08);}
+  .auth-title{font-size:20px;font-weight:700;text-align:center;margin-bottom:6px;color:#1a1a18;}
+  .auth-sub{font-size:13px;color:#5a5a57;text-align:center;margin-bottom:24px;}
+  .input-wrap{position:relative;}
+  .input-wrap .form-input{padding-right:38px;width:100%;}
+  .eye-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#999;padding:4px;display:flex;}
+  .btn-login{width:100%;padding:10px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;background:#2DBD8F;color:#fff;border:none;transition:all .15s;}
+  .btn-login:hover{background:#1A9A72;}
+</style>
+<div class="auth-wrap">
+  <div class="auth-card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div style="margin-bottom:16px;">
+      {% for cat,msg in messages %}<div class="flash flash-{{cat}}">{{msg}}</div>{% endfor %}
+    </div>
+    {% endif %}{% endwith %}
+
+    <!-- LOGOS DAS DUAS EMPRESAS -->
+    <div class="logos-row">
+      <img src="{{ url_for('static', filename='interbio.jpg') }}" alt="Interbio" style="height:48px;object-fit:contain;">
+      <div class="logo-divider"></div>
+      <img src="{{ url_for('static', filename='intergreen.jpg') }}" alt="InterGreen" style="height:48px;object-fit:contain;">
+    </div>
+    <div class="platform-tag">Uma plataforma Interbio & InterGreen</div>
+
+    <!-- LOGO INTERMETRICS -->
+    <div style="text-align:center;margin-bottom:20px;">
+      <img src="{{ url_for('static', filename='intermetrics.png') }}" alt="InterMetrics" style="max-height:90px;max-width:300px;object-fit:contain;">
+    </div>
+
+    <div class="auth-title">Bem-vinda de volta</div>
+    <div class="auth-sub">Acesse sua conta para continuar</div>
+
+    <form method="POST">
+      <div class="form-group">
+        <label class="form-label">E-mail *</label>
+        <input class="form-input" type="email" name="email" placeholder="voce@empresa.com.br" required autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Senha *</label>
+        <div class="input-wrap">
+          <input class="form-input" type="password" name="password" placeholder="••••••••" id="pw" required>
+          <button type="button" class="eye-btn" onclick="togglePw()">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <button type="submit" class="btn-login">Entrar</button>
+    </form>
+    <div style="text-align:center;margin-top:16px;">
+      <a href="{{ url_for('forgot_password') }}" style="font-size:13px;color:#888;">Esqueci minha senha</a>
+    </div>
+  </div>
+</div>
+<script>
+function togglePw(){
+  const inp=document.getElementById('pw');
+  inp.type=inp.type==='password'?'text':'password';
+}
+</script>
+{% endblock %}

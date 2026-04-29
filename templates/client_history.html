@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Histórico{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Histórico de inventários</div>
+    <div class="page-sub">{{ company.name }} · Comparação entre anos</div>
+  </div>
+  <a href="{{ url_for('client_new_entry') }}" class="btn btn-primary btn-sm">+ Lançar dados</a>
+</div>
+
+<!-- SELETOR DE ANOS -->
+<div class="card" style="margin-bottom:16px;">
+  <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">Selecione os anos para visualizar e comparar:</div>
+  <form method="GET" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+    {% if all_years %}
+      {% for y in all_years %}
+      <label style="display:flex;align-items:center;gap:6px;padding:6px 14px;border:1.5px solid {% if y in sel_years %}var(--green){% else %}var(--border){% endif %};border-radius:20px;cursor:pointer;background:{% if y in sel_years %}var(--green-light){% else %}var(--surface){% endif %};font-size:13px;font-weight:{% if y in sel_years %}600{% else %}400{% endif %};color:{% if y in sel_years %}var(--green-text){% else %}var(--text2){% endif %};">
+        <input type="checkbox" name="years" value="{{ y }}" {% if y in sel_years %}checked{% endif %} style="accent-color:var(--green);" onchange="this.form.submit()">
+        {{ y }}
+      </label>
+      {% endfor %}
+    {% else %}
+      <div style="font-size:13px;color:var(--text3);">Nenhum inventário lançado ainda. <a href="{{ url_for('client_new_entry') }}">Faça o primeiro lançamento.</a></div>
+    {% endif %}
+  </form>
+</div>
+
+{% if sel_years and by_year %}
+
+<!-- COMPARAÇÃO RESUMIDA -->
+{% if sel_years|length > 1 %}
+<div class="card">
+  <div class="card-title">Comparação entre anos selecionados</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Ano</th>
+        <th>Escopo 1 (tCO₂e)</th>
+        <th>Escopo 2 (tCO₂e)</th>
+        <th>Escopo 3 (tCO₂e)</th>
+        <th>Total (tCO₂e)</th>
+        <th>Variação</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% set prev_total = namespace(val=none) %}
+    {% for y in sel_years|sort %}
+    {% if y in by_year %}
+    {% set data = by_year[y] %}
+    <tr>
+      <td style="font-weight:700;font-size:15px;color:var(--green-text);">{{ y }}</td>
+      <td style="font-weight:500;">{{ "%.2f"|format(data[1]) }}</td>
+      <td style="font-weight:500;">{{ "%.2f"|format(data[2]) }}</td>
+      <td style="font-weight:500;">{{ "%.2f"|format(data[3]) }}</td>
+      <td style="font-weight:700;font-size:15px;">{{ "%.2f"|format(data["total"]) }}</td>
+      <td>
+        {% if prev_total.val is not none %}
+          {% set delta = data["total"] - prev_total.val %}
+          {% set pct = (delta / prev_total.val * 100) if prev_total.val > 0 else 0 %}
+          <span style="font-weight:600;color:{% if delta > 0 %}var(--red-text){% elif delta < 0 %}var(--green-text){% else %}var(--text3){% endif %};">
+            {% if delta > 0 %}▲{% elif delta < 0 %}▼{% else %}={% endif %}
+            {{ "%.2f"|format(pct|abs) }}% ({{ "%.2f"|format(delta) }} tCO₂e)
+          </span>
+        {% else %}
+          <span style="color:var(--text3);font-size:12px;">Ano base</span>
+        {% endif %}
+        {% set prev_total.val = data["total"] %}
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- DETALHAMENTO POR ANO -->
+{% for y in sel_years|sort(reverse=true) %}
+{% if y in by_year %}
+{% set data = by_year[y] %}
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);">Inventário {{ y }}</div>
+      <div style="font-size:12px;color:var(--text2);">{{ data["entries"]|length }} lançamentos · Total: {{ "%.4f"|format(data["total"]) }} tCO₂e</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <span class="scope-pill s1" style="padding:4px 12px;">E1: {{ "%.2f"|format(data[1]) }}</span>
+      <span class="scope-pill s2" style="padding:4px 12px;">E2: {{ "%.2f"|format(data[2]) }}</span>
+      <span class="scope-pill s3" style="padding:4px 12px;">E3: {{ "%.2f"|format(data[3]) }}</span>
+    </div>
+  </div>
+
+  <!-- Barras de escopo -->
+  {% set total_y = data["total"] %}
+  {% if total_y > 0 %}
+  <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;margin-bottom:14px;gap:2px;">
+    {% if data[1] > 0 %}<div style="flex:{{ data[1] }};background:var(--green);border-radius:4px;" title="Escopo 1: {{ '%.2f'|format(data[1]) }} tCO₂e"></div>{% endif %}
+    {% if data[2] > 0 %}<div style="flex:{{ data[2] }};background:var(--blue);border-radius:4px;" title="Escopo 2: {{ '%.2f'|format(data[2]) }} tCO₂e"></div>{% endif %}
+    {% if data[3] > 0 %}<div style="flex:{{ data[3] }};background:var(--amber);border-radius:4px;" title="Escopo 3: {{ '%.2f'|format(data[3]) }} tCO₂e"></div>{% endif %}
+  </div>
+  {% endif %}
+
+  <table>
+    <thead><tr><th>Fonte</th><th>Escopo</th><th>Categoria</th><th>Quantidade</th><th>FE</th><th>tCO₂e</th><th>Período</th></tr></thead>
+    <tbody>
+    {% for e in data["entries"] %}
+    <tr>
+      <td style="font-weight:500;">{{ e.source_name }}</td>
+      <td><span class="scope-pill s{{ e.scope }}">E{{ e.scope }}</span></td>
+      <td style="font-size:11px;color:var(--text2);">{{ e.category }}</td>
+      <td style="font-size:12px;">{{ e.quantity|round(2) }} {{ e.unit }}</td>
+      <td style="font-size:12px;">{{ e.emission_factor }}</td>
+      <td style="font-weight:700;color:var(--green-text);">{{ "%.4f"|format(e.total_co2e) }}</td>
+      <td style="font-size:11px;color:var(--text3);">{{ e.period or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endfor %}
+
+{% elif all_years %}
+<div class="card">
+  <div class="empty-state">Selecione pelo menos um ano acima para visualizar os dados.</div>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div style="font-size:36px;margin-bottom:12px;">📋</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Nenhum inventário ainda</div>
+    <a href="{{ url_for('client_new_entry') }}" class="btn btn-primary" style="margin-top:12px;display:inline-flex;">+ Fazer primeiro lançamento</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

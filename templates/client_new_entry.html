@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}Lançar dados{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Lançar dados de atividade</div>
+    <div class="page-sub">{{ company.name }} · Os dados entram automaticamente no inventário</div>
+  </div>
+  <a href="{{ url_for('client_dashboard_full') }}" class="btn btn-secondary btn-sm">← Voltar</a>
+</div>
+
+<div style="background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius);padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--green-text);display:flex;gap:10px;align-items:flex-start;">
+  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <div><strong>Como funciona:</strong> Preencha os campos abaixo com base em notas fiscais, faturas e medidores. O sistema calcula as emissões automaticamente. A Interbio pode revisar os lançamentos quando necessário.</div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 310px;gap:16px;align-items:start;">
+<form method="POST">
+
+  <!-- BLOCO 1: ANO E IDENTIFICAÇÃO -->
+  <div class="card">
+    <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+      <span style="width:24px;height:24px;background:var(--green);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">1</span>
+      Ano do inventário e identificação
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Ano do inventário *</label>
+        <select class="form-input" name="inventory_year" required>
+          {% for y in current_years %}
+          <option value="{{ y }}" {% if y == now_month[:4]|int %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-help">Selecione o ano ao qual este dado pertence. Você pode lançar dados de anos diferentes para criar um histórico completo.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Período de referência</label>
+        <input class="form-input" type="month" name="period" value="{{ now_month }}">
+        <div class="form-help">Mês e ano específico do consumo, dentro do ano do inventário.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Escopo *</label>
+        <select class="form-input" name="scope" id="scope-sel" required onchange="updateScope()">
+          <option value="">Selecione...</option>
+          {% if 1 in allowed_scopes %}<option value="1">Escopo 1 — Emissões diretas</option>{% endif %}
+          {% if 2 in allowed_scopes %}<option value="2">Escopo 2 — Energia elétrica</option>{% endif %}
+          {% if 3 in allowed_scopes %}<option value="3">Escopo 3 — Cadeia de valor</option>{% endif %}
+        </select>
+        <div class="form-help" id="scope-help">Selecione para ver a descrição do escopo.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoria *</label>
+        <select class="form-input" name="category" id="cat-sel" required onchange="updateCatHelp()">
+          <option value="">Selecione o escopo primeiro</option>
+        </select>
+        <div class="form-help" id="cat-help">A categoria depende do escopo escolhido.</div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1;">
+        <label class="form-label">Nome da fonte *</label>
+        <input class="form-input" type="text" name="source_name" required placeholder="Ex: Caldeira da sede, Gerador 1, Frota de entregas">
+        <div class="form-help">Identifique claramente a fonte. Use o mesmo nome em lançamentos futuros para facilitar o histórico.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unidade / Instalação</label>
+        <input class="form-input" type="text" name="notes" placeholder="Ex: Matriz SP, Filial RJ, Planta MG">
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 2: DADOS DE CONSUMO -->
+  <div class="card">
+    <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+      <span style="width:24px;height:24px;background:var(--green);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">2</span>
+      Dados de consumo
+    </div>
+    <div class="form-group">
+      <label class="form-label">Selecionar da base oficial de fatores de emissão</label>
+      <select class="form-input" onchange="applyEF(this.value)">
+        <option value="">— Selecione para preencher automaticamente —</option>
+        <optgroup label="Escopo 1 — Combustão estacionária">
+          {% for ef in emission_factors if ef.scope == 1 and 'estacion' in ef.category.lower() %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="Escopo 1 — Combustão móvel">
+          {% for ef in emission_factors if ef.scope == 1 and 'móvel' in ef.category.lower() %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="Escopo 1 — Fugitivas">
+          {% for ef in emission_factors if ef.scope == 1 and 'fugit' in ef.category.lower() %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="Escopo 2 — Energia elétrica">
+          {% for ef in emission_factors if ef.scope == 2 %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="Escopo 3">
+          {% for ef in emission_factors if ef.scope == 3 %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+      </select>
+      <div class="form-help">Ao selecionar, os campos abaixo são preenchidos com os valores oficiais (MCTI 2024, SEEG v12 ou IPCC AR6).</div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Tipo de combustível / insumo *</label>
+        <input class="form-input" type="text" name="fuel_type" id="fuel-input" required placeholder="Ex: Gás natural, Diesel">
+        <div class="form-help">Preenchido automaticamente ao selecionar da base acima.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantidade consumida *</label>
+        <input class="form-input" type="number" step="any" name="quantity" id="qty-input" required placeholder="0" oninput="calc()">
+        <div class="form-help">Volume total do período. Consulte sua nota fiscal ou medidor.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unidade *</label>
+        <select class="form-input" name="unit" id="unit-input" onchange="calc()">
+          <option value="m³">m³ — gás natural</option>
+          <option value="L">L — combustíveis líquidos</option>
+          <option value="kg">kg — GLP, refrigerantes</option>
+          <option value="kWh">kWh — energia elétrica</option>
+          <option value="MWh">MWh — energia elétrica (grande porte)</option>
+          <option value="t·km">t·km — transporte de carga</option>
+          <option value="pkm">pkm — viagens (passageiro·km)</option>
+          <option value="t">t — resíduos, materiais</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fator de emissão (kgCO₂e/unid.) *</label>
+        <input class="form-input" type="number" step="any" name="emission_factor" id="ef-input" required placeholder="0.000" oninput="calc()">
+        <div class="form-help">Preenchido automaticamente. Não altere sem orientação da Interbio.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fonte do fator de emissão</label>
+        <input class="form-input" type="text" name="ef_source" id="ef-source-input" value="MCTI 2024">
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 3: DOCUMENTAÇÃO -->
+  <div class="card">
+    <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+      <span style="width:24px;height:24px;background:var(--green);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">3</span>
+      Documentação de suporte
+    </div>
+    <div class="form-group">
+      <label class="form-label">Documento de referência</label>
+      <input class="form-input" type="text" name="attachment_note" placeholder="Ex: NF 4521 de 15/01/2024, Fatura CPFL jan/2024, Relatório de frota Q1">
+      <div class="form-help">Anote qual documento foi usado como base para este lançamento. Facilita a auditoria e revisão pela Interbio.</div>
+    </div>
+    <div style="background:var(--yellow-light);border:1px solid var(--yellow);border-radius:8px;padding:10px 13px;font-size:12px;color:var(--yellow-text);">
+      <strong>📎 Guarde os documentos originais</strong> (notas fiscais, faturas, relatórios) pois a Interbio pode solicitá-los durante a revisão do inventário.
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:8px;">
+    <a href="{{ url_for('client_dashboard_full') }}" class="btn btn-secondary">Cancelar</a>
+    <button type="submit" class="btn btn-primary" id="submit-btn" disabled>✓ Salvar lançamento</button>
+  </div>
+</form>
+
+<!-- PAINEL LATERAL -->
+<div>
+  <div class="card" style="text-align:center;border-top:4px solid var(--green);position:sticky;top:72px;">
+    <div style="font-size:10px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">Resultado calculado</div>
+    <div style="font-size:42px;font-weight:700;color:var(--green);line-height:1;" id="result-value">—</div>
+    <div style="font-size:14px;color:var(--text2);font-weight:500;margin-top:4px;">tCO₂e</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);" id="result-formula">Preencha quantidade e fator</div>
+  </div>
+
+  <div class="card" style="font-size:12px;color:var(--text2);">
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--text);">📘 O que é cada escopo?</div>
+    <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+      <div style="font-weight:600;color:var(--green-text);margin-bottom:3px;">🟢 Escopo 1 — Diretas</div>
+      <div>Combustão em caldeiras, geradores, fornos e veículos próprios. Também inclui vazamento de gases refrigerantes.</div>
+    </div>
+    <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+      <div style="font-weight:600;color:var(--blue-text);margin-bottom:3px;">🔵 Escopo 2 — Energia</div>
+      <div>Eletricidade comprada da rede. Use o consumo em kWh das faturas de energia elétrica.</div>
+    </div>
+    <div>
+      <div style="font-weight:600;color:var(--amber-text);margin-bottom:3px;">🟡 Escopo 3 — Cadeia</div>
+      <div>Transporte de mercadorias, viagens corporativas, resíduos gerados e outros impactos indiretos.</div>
+    </div>
+  </div>
+
+  <div class="card" style="font-size:12px;color:var(--text2);">
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--text);">📋 O que ter em mãos</div>
+    <div style="display:flex;flex-direction:column;gap:7px;">
+      <div>⚡ <strong>Energia:</strong> fatura com kWh do período</div>
+      <div>⛽ <strong>Combustíveis:</strong> NF com volume (L ou m³)</div>
+      <div>❄️ <strong>Refrigerantes:</strong> relatório de recarga em kg</div>
+      <div>🚚 <strong>Transportes:</strong> distância e tipo de veículo</div>
+      <div>✈️ <strong>Viagens:</strong> destino e modal utilizado</div>
+      <div>🗑️ <strong>Resíduos:</strong> manifesto de resíduos (kg ou t)</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const scopeHelp = {
+  "1": "Escopo 1: emissões diretas na sua empresa — queima de combustíveis em equipamentos fixos, veículos próprios e vazamentos de gases refrigerantes.",
+  "2": "Escopo 2: eletricidade comprada da rede elétrica. Informe o consumo em kWh ou MWh das suas faturas de energia.",
+  "3": "Escopo 3: emissões indiretas na sua cadeia de valor — transporte de mercadorias, viagens corporativas, resíduos e outros."
+};
+const cats = {
+  "1": [["Combustão estacionária","Caldeiras, fornos, geradores e equipamentos fixos que queimam combustível."],["Combustão móvel","Veículos próprios: caminhões, carros, motos, empilhadeiras."],["Emissões fugitivas","Vazamentos de gases refrigerantes em ar-condicionado e câmaras frias."],["Processo industrial","Reações que liberam GEE no processo produtivo — consulte a Interbio."]],
+  "2": [["Eletricidade comprada (localização)","Método padrão — usa o fator do SIN (rede elétrica brasileira). Informe kWh das faturas."],["Eletricidade comprada (mercado)","Para empresas com certificados de energia renovável (REC/I-REC)."]],
+  "3": [["Cat. 1 — Bens e serviços comprados","Emissões dos seus fornecedores de materiais e serviços."],["Cat. 3 — Atividades de energia","Perdas na transmissão de energia e extração de combustíveis."],["Cat. 4 — Transporte upstream","Frete de mercadorias de fornecedores até sua empresa."],["Cat. 5 — Resíduos","Resíduos sólidos e efluentes gerados nas operações."],["Cat. 6 — Viagens a negócios","Voos, ônibus, trem em viagens corporativas."],["Cat. 7 — Deslocamento funcionários","Trajeto casa-trabalho dos colaboradores."],["Cat. 11 — Uso de produtos vendidos","Emissões pelo uso dos seus produtos pelos clientes."]]
+};
+function updateScope(){
+  const scope = document.getElementById("scope-sel").value;
+  document.getElementById("scope-help").textContent = scopeHelp[scope] || "Selecione o escopo para ver a descrição.";
+  const catSel = document.getElementById("cat-sel");
+  catSel.innerHTML = "";
+  if(cats[scope]){
+    cats[scope].forEach(([name]) => {
+      const opt = document.createElement("option");
+      opt.value = name; opt.textContent = name;
+      catSel.appendChild(opt);
+    });
+    updateCatHelp();
+  } else {
+    catSel.innerHTML = "<option value=''>Selecione o escopo primeiro</option>";
+  }
+}
+function updateCatHelp(){
+  const scope = document.getElementById("scope-sel").value;
+  const cat = document.getElementById("cat-sel").value;
+  const found = (cats[scope]||[]).find(([n]) => n===cat);
+  document.getElementById("cat-help").textContent = found ? found[1] : "";
+}
+document.getElementById("cat-sel").addEventListener("change", updateCatHelp);
+function applyEF(id){
+  if(!id) return;
+  const opt = document.querySelector('select[onchange="applyEF(this.value)"] option[value="'+id+'"]');
+  if(!opt) return;
+  document.getElementById("ef-input").value = opt.dataset.fe;
+  document.getElementById("unit-input").value = opt.dataset.unit;
+  document.getElementById("fuel-input").value = opt.dataset.fuel;
+  document.getElementById("ef-source-input").value = opt.dataset.source;
+  calc();
+}
+function calc(){
+  const qty = parseFloat(document.getElementById("qty-input").value)||0;
+  const ef = parseFloat(document.getElementById("ef-input").value)||0;
+  const result = qty*ef/1000;
+  const btn = document.getElementById("submit-btn");
+  if(result>0){
+    document.getElementById("result-value").textContent = result.toFixed(4);
+    document.getElementById("result-formula").textContent = qty+" × "+ef+" ÷ 1000 = "+result.toFixed(4)+" tCO₂e";
+    btn.disabled = false;
+  } else {
+    document.getElementById("result-value").textContent = "—";
+    document.getElementById("result-formula").textContent = "Preencha quantidade e fator";
+    btn.disabled = true;
+  }
+}
+</script>
+{% endblock %}

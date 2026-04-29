@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Aceitar convite{% endblock %}
+{% block auth_content %}
+<style>
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:24px;}
+  .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:32px;width:100%;max-width:420px;}
+</style>
+<div class="auth-wrap">
+  <div class="auth-card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}<div style="margin-bottom:16px">{% for c,m in messages %}<div class="flash flash-{{c}}">{{m}}</div>{% endfor %}</div>{% endif %}
+    {% endwith %}
+    <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:24px;">
+      <div style="width:34px;height:34px;background:var(--green);border-radius:9px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div><div style="font-size:16px;font-weight:700;">CarbonMetric</div></div>
+    </div>
+    <div style="background:var(--blue-light);border:1px solid #B5D4F4;border-radius:8px;padding:12px 14px;font-size:13px;color:var(--blue-text);margin-bottom:20px;">
+      <div style="font-weight:600;margin-bottom:4px;">Convite recebido</div>
+      <div>Empresa: <strong>{{ company.name }}</strong></div>
+      <div>E-mail: <strong>{{ invite.email }}</strong></div>
+    </div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:18px;">Complete seu cadastro</div>
+    <form method="POST">
+      <div class="form-group">
+        <label class="form-label">Nome completo *</label>
+        <input class="form-input" type="text" name="name" required placeholder="Seu nome completo">
+      </div>
+      <div class="form-group">
+        <label class="form-label">E-mail</label>
+        <input class="form-input" value="{{ invite.email }}" readonly style="background:var(--bg);color:var(--text3);">
+        <div class="form-hint">E-mail vinculado ao convite — não pode ser alterado.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Empresa</label>
+        <input class="form-input" value="{{ company.name }}" readonly style="background:var(--bg);color:var(--text3);">
+        <div class="form-hint">Você terá acesso exclusivo ao inventário desta empresa.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Criar senha *</label>
+        <input class="form-input" type="password" name="password" required placeholder="Mínimo 8 caracteres">
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:16px;">
+        <input type="checkbox" id="terms" required style="margin-top:3px;accent-color:var(--green)">
+        <label for="terms" style="font-size:12px;color:var(--text2);">Aceito os <a href="#">Termos de uso</a> e a <a href="#">Política de privacidade</a>.</label>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:9px;">Criar conta e acessar inventário</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

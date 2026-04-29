@@ -1,0 +1,54 @@
+<!-- new_company.html -->
+{% extends "base.html" %}
+{% block title %}Novo cliente{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><div class="page-title">Novo cliente</div><div class="page-sub">Cadastrar empresa no portfólio</div></div>
+  <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-sm">← Voltar</a>
+</div>
+<div class="card" style="max-width:560px;">
+  <form method="POST">
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1;">
+        <label class="form-label">Razão social *</label>
+        <input class="form-input" type="text" name="name" required placeholder="Empresa XYZ S.A.">
+      </div>
+      <div class="form-group">
+        <label class="form-label">CNPJ</label>
+        <input class="form-input" type="text" name="cnpj" placeholder="00.000.000/0001-00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Setor econômico</label>
+        <select class="form-input" name="sector">
+          <option value="">Selecione...</option>
+          <option>Energia · Oil & Gas</option>
+          <option>Mineração</option>
+          <option>Indústria</option>
+          <option>Agronegócio</option>
+          <option>Papel & Celulose</option>
+          <option>Alimentos & Bebidas</option>
+          <option>Serviços</option>
+          <option>Varejo</option>
+          <option>Transporte & Logística</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ano-base do inventário</label>
+        <select class="form-input" name="base_year">
+          <option value="2024">2024</option>
+          <option value="2023">2023</option>
+          <option value="2022">2022</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Prazo de entrega</label>
+        <input class="form-input" type="date" name="deadline">
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+      <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">Cadastrar cliente</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

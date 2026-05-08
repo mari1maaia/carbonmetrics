@@ -62,7 +62,7 @@
     </div>
     <table>
       <thead>
-        <tr><th>Fonte</th><th>Escopo</th><th>Categoria</th><th>Quantidade</th><th>FE</th><th>tCO₂e</th><th>Período</th></tr>
+        <tr><th>Fonte</th><th>Escopo</th><th>Categoria</th><th>Quantidade</th><th>FE</th><th>GWP</th><th>tCO₂e</th><th>Período</th><th></th></tr>
       </thead>
       <tbody>
       {% for e in emissions %}
@@ -72,8 +72,14 @@
         <td style="font-size:12px;color:var(--text2);">{{ e.category }}</td>
         <td style="font-size:12px;">{{ e.quantity|round(1) }} {{ e.unit }}</td>
         <td style="font-size:12px;">{{ e.emission_factor }} <span style="color:var(--text3);">kgCO₂e/{{ e.unit }}</span></td>
+        <td style="font-size:12px;color:var(--text2);">{{ e.gwp|int if e.gwp else '—' }}</td>
         <td style="font-weight:600;color:var(--green-text);">{{ "%.4f"|format(e.total_co2e) }}</td>
         <td style="font-size:12px;color:var(--text3);">{{ e.period or '—' }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('delete_entry', entry_id=e.id) }}" onsubmit="return confirm('Excluir lançamento de {{ e.source_name }}? Esta ação não pode ser desfeita.')">
+            <button type="submit" class="btn btn-sm" style="background:var(--red-light);color:var(--red-text);border:1px solid #F7C1C1;padding:3px 9px;" title="Excluir lançamento">🗑</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
       </tbody>

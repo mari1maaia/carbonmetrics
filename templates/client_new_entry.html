@@ -87,10 +87,8 @@
           <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
           {% endfor %}
         </optgroup>
-        <optgroup label="Escopo 1 — Fugitivas">
-          {% for ef in emission_factors if ef.scope == 1 and 'fugit' in ef.category.lower() %}
-          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
-          {% endfor %}
+        <optgroup label="Escopo 1 — Fugitivas (selecione o gás abaixo)">
+          <option value="" disabled>— use o seletor de gases fugitivos abaixo —</option>
         </optgroup>
         <optgroup label="Escopo 2 — Energia elétrica">
           {% for ef in emission_factors if ef.scope == 2 %}
@@ -137,6 +135,11 @@
       <div class="form-group">
         <label class="form-label">Fonte do fator de emissão</label>
         <input class="form-input" type="text" name="ef_source" id="ef-source-input" value="MCTI 2024">
+      </div>
+      <div class="form-group" id="gwp-group" style="display:none;">
+        <label class="form-label">GWP (Potencial de Aquecimento Global)</label>
+        <input class="form-input" type="number" name="gwp" id="gwp-input" readonly style="background:var(--bg);">
+        <div class="form-help">Preenchido automaticamente ao selecionar o gás. Representa quantas vezes o gás é mais potente que o CO₂.</div>
       </div>
     </div>
   </div>
@@ -229,6 +232,31 @@ function updateScope(){
   } else {
     catSel.innerHTML = "<option value=''>Selecione o escopo primeiro</option>";
   }
+  checkFugitive();
+}
+function checkFugitive(){
+  const cat = document.getElementById("cat-sel").value;
+  const isFug = cat.toLowerCase().includes("fugit");
+  document.getElementById("fugitive-gas-group").style.display = isFug ? "flex" : "none";
+  if(!isFug){
+    document.getElementById("gwp-group").style.display = "none";
+    document.getElementById("gwp-input").value = "";
+  }
+}
+function applyGas(id){
+  if(!id) return;
+  const opt = document.querySelector("#gas-sel option[value=""+id+""]");
+  if(!opt) return;
+  const gwp = opt.dataset.gwp;
+  const name = opt.dataset.name;
+  document.getElementById("fuel-input").value = name;
+  document.getElementById("ef-input").value = gwp;
+  document.getElementById("ef-source-input").value = "MCTI 2024 / IPCC AR5";
+  document.getElementById("gwp-input").value = gwp;
+  document.getElementById("gwp-group").style.display = "flex";
+  // Para gases fugitivos: FE = GWP (quantidade em kg × GWP / 1000 = tCO2e)
+  document.getElementById("unit-input").value = "kg";
+  calc();
 }
 function updateCatHelp(){
   const scope = document.getElementById("scope-sel").value;
@@ -236,7 +264,7 @@ function updateCatHelp(){
   const found = (cats[scope]||[]).find(([n]) => n===cat);
   document.getElementById("cat-help").textContent = found ? found[1] : "";
 }
-document.getElementById("cat-sel").addEventListener("change", updateCatHelp);
+document.getElementById("cat-sel").addEventListener("change", function(){ updateCatHelp(); checkFugitive(); });
 function applyEF(id){
   if(!id) return;
   const opt = document.querySelector('select[onchange="applyEF(this.value)"] option[value="'+id+'"]');

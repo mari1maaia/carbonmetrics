@@ -6,9 +6,14 @@
     <div class="page-title">Portfólio de clientes</div>
     <div class="page-sub">Interbio Tecnologia Ambiental · GHG Protocol {{ today.year }}</div>
   </div>
-  <div style="display:flex;gap:8px;">
-    <a href="{{ url_for('admin_dashboard_full') }}" class="btn btn-secondary btn-sm">📊 Dashboard & filtros</a>
-    <a href="{{ url_for('admin_new_entry') }}" class="btn btn-secondary btn-sm">+ Lançar emissão</a>
+  <div style="display:flex;gap:8px;align-items:center;">
+    {% if request.args.get("archived") == "1" %}
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-sm">← Clientes ativos</a>
+    {% else %}
+    <a href="{{ url_for('admin_dashboard') }}?archived=1" class="btn btn-secondary btn-sm">📦 Arquivados</a>
+    {% endif %}
+    <a href="{{ url_for('admin_dashboard_full') }}" class="btn btn-secondary btn-sm">📊 Dashboard</a>
+    <a href="{{ url_for('admin_new_entry') }}" class="btn btn-secondary btn-sm">+ Lançar</a>
     <a href="{{ url_for('new_company') }}" class="btn btn-primary btn-sm">+ Novo cliente</a>
   </div>
 </div>
@@ -38,7 +43,7 @@
   </div>
   <table>
     <thead>
-      <tr><th>Empresa</th><th>Setor</th><th>Ano-base</th><th>tCO₂e</th><th>Status</th><th>Prazo</th><th></th></tr>
+      <tr><th>Empresa</th><th>Setor</th><th>tCO₂e</th><th>Status</th><th></th></tr>
     </thead>
     <tbody>
     {% for c in companies %}
@@ -55,17 +60,33 @@
         </div>
       </td>
       <td style="color:var(--text2);font-size:12px;">{{ c.sector or '—' }}</td>
-      <td style="font-weight:500;">{{ c.base_year }}</td>
       <td style="font-weight:700;color:var(--green-text);">{{ "%.2f"|format(co2.val) }}</td>
       <td>
-        <span class="status-pill {% if c.status == 'concluido' %}status-concluido{% elif c.status == 'revisao' %}status-revisao{% else %}status-andamento{% endif %}">
-          {{ 'Concluído' if c.status == 'concluido' else ('Em revisão' if c.status == 'revisao' else 'Em andamento') }}
-        </span>
+        {% if c.archived %}
+          <span class="status-pill" style="background:#f0f0f0;color:#888;">Arquivado</span>
+        {% else %}
+          <span class="status-pill {% if c.status == 'concluido' %}status-concluido{% elif c.status == 'revisao' %}status-revisao{% else %}status-andamento{% endif %}">
+            {{ 'Concluído' if c.status == 'concluido' else ('Em revisão' if c.status == 'revisao' else 'Em andamento') }}
+          </span>
+        {% endif %}
       </td>
-      <td style="font-size:12px;color:{% if c.deadline and c.deadline < today %}var(--red-text){% else %}var(--text2){% endif %};">
-        {{ c.deadline.strftime('%d/%m/%Y') if c.deadline else '—' }}
+      <td>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          {% if not c.archived %}
+          <a href="{{ url_for('company_detail', company_id=c.id) }}" class="btn btn-secondary btn-sm">Abrir</a>
+          <form method="POST" action="{{ url_for('archive_company', company_id=c.id) }}" onsubmit="return confirm('Arquivar {{ c.name }}? Ele sairá dos dashboards mas ficará na plataforma.')">
+            <button type="submit" class="btn btn-sm" style="background:var(--yellow-light);color:var(--yellow-text);border:1px solid var(--yellow);">📦 Arquivar</button>
+          </form>
+          {% else %}
+          <form method="POST" action="{{ url_for('unarchive_company', company_id=c.id) }}">
+            <button type="submit" class="btn btn-primary btn-sm">↩ Reativar</button>
+          </form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('delete_company', company_id=c.id) }}" onsubmit="return confirm('EXCLUIR {{ c.name }} PERMANENTEMENTE? Esta ação não pode ser desfeita e removerá todos os dados.')">
+            <button type="submit" class="btn btn-sm" style="background:var(--red-light);color:var(--red-text);border:1px solid #F7C1C1;">🗑 Excluir</button>
+          </form>
+        </div>
       </td>
-      <td><a href="{{ url_for('company_detail', company_id=c.id) }}" class="btn btn-secondary btn-sm">Abrir</a></td>
     </tr>
     {% endfor %}
     </tbody>

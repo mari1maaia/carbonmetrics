@@ -787,8 +787,32 @@ def seed_data():
     print("   Admin:   admin@carbonmetric.com / admin123")
     print("   Cliente: cliente@carbonmetric.com / cliente123")
 
+def migrate_db():
+    default_123 = "123"
+    with db.engine.connect() as conn:
+        for table, col, col_type in [
+            ("company", "archived", "BOOLEAN DEFAULT FALSE"),
+            ("emission_entry", "gwp", "FLOAT"),
+        ]:
+            try:
+                conn.execute(db.text("ALTER TABLE " + table + " ADD COLUMN " + col + " " + col_type))
+                conn.commit()
+            except Exception:
+                pass
+        for sql in [
+            'ALTER TABLE "user" ADD COLUMN scope_access VARCHAR(10) DEFAULT ' + "'" + default_123 + "'",
+            "ALTER TABLE user ADD COLUMN scope_access VARCHAR(10) DEFAULT '" + default_123 + "'",
+        ]:
+            try:
+                conn.execute(db.text(sql))
+                conn.commit()
+                break
+            except Exception:
+                pass
+
 with app.app_context():
     db.create_all()
+    migrate_db()
     seed_data()
 
 if __name__ == "__main__":

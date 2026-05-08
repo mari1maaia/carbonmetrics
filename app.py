@@ -63,6 +63,7 @@ class Company(db.Model):
     sector = db.Column(db.String(100), nullable=True)
     responsible_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     status = db.Column(db.String(30), default="em_andamento")
+    archived = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     users = db.relationship("User", back_populates="company", foreign_keys="User.company_id")
     emissions = db.relationship("EmissionEntry", back_populates="company", cascade="all, delete-orphan")
@@ -79,6 +80,7 @@ class EmissionEntry(db.Model):
     quantity = db.Column(db.Float, nullable=False)
     unit = db.Column(db.String(30), nullable=False)
     emission_factor = db.Column(db.Float, nullable=False)
+    gwp = db.Column(db.Float, nullable=True)
     ef_source = db.Column(db.String(50), default="MCTI 2024")
     total_co2e = db.Column(db.Float, nullable=False)
     period = db.Column(db.String(20), nullable=True)
@@ -108,19 +110,62 @@ class Invite(db.Model):
 
 # ─── FATORES DE EMISSÃO ──────────────────────────────────────────────────────
 
+# Gases fugitivos com GWP — base MCTI 2024 (AR5, 100 anos)
+FUGITIVE_GASES = [
+    {"id":101,"name":"Dióxido de carbono (CO₂)","gwp":1,"familia":"-"},
+    {"id":102,"name":"Metano (CH₄)","gwp":28,"familia":"-"},
+    {"id":103,"name":"Óxido nitroso (N₂O)","gwp":265,"familia":"-"},
+    {"id":104,"name":"HFC-23","gwp":12400,"familia":"HFC"},
+    {"id":105,"name":"HFC-32","gwp":677,"familia":"HFC"},
+    {"id":106,"name":"HFC-41","gwp":116,"familia":"HFC"},
+    {"id":107,"name":"HFC-125","gwp":3170,"familia":"HFC"},
+    {"id":108,"name":"HFC-134","gwp":1120,"familia":"HFC"},
+    {"id":109,"name":"HFC-134a","gwp":1300,"familia":"HFC"},
+    {"id":110,"name":"HFC-143","gwp":328,"familia":"HFC"},
+    {"id":111,"name":"HFC-143a","gwp":4800,"familia":"HFC"},
+    {"id":112,"name":"HFC-152","gwp":16,"familia":"HFC"},
+    {"id":113,"name":"HFC-152a","gwp":138,"familia":"HFC"},
+    {"id":114,"name":"HFC-161","gwp":4,"familia":"HFC"},
+    {"id":115,"name":"HFC-227ea","gwp":3350,"familia":"HFC"},
+    {"id":116,"name":"HFC-236cb","gwp":1210,"familia":"HFC"},
+    {"id":117,"name":"HFC-236ea","gwp":1330,"familia":"HFC"},
+    {"id":118,"name":"HFC-236fa","gwp":8060,"familia":"HFC"},
+    {"id":119,"name":"HFC-245ca","gwp":716,"familia":"HFC"},
+    {"id":120,"name":"HFC-245fa","gwp":858,"familia":"HFC"},
+    {"id":121,"name":"HFC-365mfc","gwp":804,"familia":"HFC"},
+    {"id":122,"name":"HFC-43-10mee","gwp":1650,"familia":"HFC"},
+    {"id":123,"name":"Hexafluoreto de enxofre (SF₆)","gwp":23500,"familia":"-"},
+    {"id":124,"name":"Trifluoreto de nitrogênio (NF₃)","gwp":16100,"familia":"-"},
+    {"id":125,"name":"PFC-14","gwp":6630,"familia":"PFC"},
+    {"id":126,"name":"PFC-116","gwp":11100,"familia":"PFC"},
+    {"id":127,"name":"PFC-218","gwp":8900,"familia":"PFC"},
+    {"id":128,"name":"PFC-318","gwp":9540,"familia":"PFC"},
+    {"id":129,"name":"PFC-3-1-10","gwp":3200,"familia":"PFC"},
+    {"id":130,"name":"PFC-4-1-12","gwp":8550,"familia":"PFC"},
+    {"id":131,"name":"PFC-5-1-14","gwp":7910,"familia":"PFC"},
+    {"id":132,"name":"PFC-9-1-18","gwp":7190,"familia":"PFC"},
+    {"id":133,"name":"Trifluorometil pentafluoreto de enxofre","gwp":17400,"familia":"PFC"},
+    {"id":134,"name":"Perfluorociclopropano","gwp":9200,"familia":"PFC"},
+    # Misturas comuns de refrigerantes
+    {"id":150,"name":"R-22 (HCFC-22)","gwp":1810,"familia":"HCFC"},
+    {"id":151,"name":"R-410A (HFC-32/125)","gwp":2088,"familia":"HFC"},
+    {"id":152,"name":"R-404A","gwp":3922,"familia":"HFC"},
+    {"id":153,"name":"R-407C","gwp":1774,"familia":"HFC"},
+    {"id":154,"name":"R-507A","gwp":3985,"familia":"HFC"},
+    {"id":155,"name":"R-134a (HFC-134a)","gwp":1300,"familia":"HFC"},
+]
+
 EMISSION_FACTORS = [
-    {"id":1,"name":"Gás natural","scope":1,"category":"Combustão estacionária","fe":2.02,"unit":"m³","source":"MCTI 2024"},
-    {"id":2,"name":"Diesel","scope":1,"category":"Combustão móvel","fe":2.68,"unit":"L","source":"MCTI 2024"},
-    {"id":3,"name":"Gasolina","scope":1,"category":"Combustão móvel","fe":2.27,"unit":"L","source":"MCTI 2024"},
-    {"id":4,"name":"GLP","scope":1,"category":"Combustão estacionária","fe":3.01,"unit":"kg","source":"MCTI 2024"},
-    {"id":5,"name":"Etanol hidratado","scope":1,"category":"Combustão móvel","fe":1.46,"unit":"L","source":"MCTI 2024"},
-    {"id":6,"name":"Carvão mineral","scope":1,"category":"Combustão estacionária","fe":2.54,"unit":"kg","source":"SEEG v12"},
-    {"id":7,"name":"R-22 (HFC)","scope":1,"category":"Emissões fugitivas","fe":1810.0,"unit":"kg","source":"IPCC AR6"},
-    {"id":8,"name":"R-410A (HFC)","scope":1,"category":"Emissões fugitivas","fe":2088.0,"unit":"kg","source":"IPCC AR6"},
-    {"id":9,"name":"Energia elétrica SIN","scope":2,"category":"Eletricidade comprada (localização)","fe":0.0408,"unit":"kWh","source":"MCTI 2024"},
-    {"id":10,"name":"Transporte rodoviário (carga)","scope":3,"category":"Cat. 4 — Transporte upstream","fe":0.089,"unit":"t·km","source":"SEEG v12"},
-    {"id":11,"name":"Viagem aérea nacional","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":0.158,"unit":"pkm","source":"IPCC AR6"},
-    {"id":12,"name":"Resíduos sólidos (aterro)","scope":3,"category":"Cat. 5 — Resíduos","fe":0.52,"unit":"kg","source":"MCTI 2024"},
+    {"id":1,"name":"Gás natural","scope":1,"category":"Combustão estacionária","fe":2.02,"unit":"m³","source":"MCTI 2024","gwp":None},
+    {"id":2,"name":"Diesel","scope":1,"category":"Combustão móvel","fe":2.68,"unit":"L","source":"MCTI 2024","gwp":None},
+    {"id":3,"name":"Gasolina","scope":1,"category":"Combustão móvel","fe":2.27,"unit":"L","source":"MCTI 2024","gwp":None},
+    {"id":4,"name":"GLP","scope":1,"category":"Combustão estacionária","fe":3.01,"unit":"kg","source":"MCTI 2024","gwp":None},
+    {"id":5,"name":"Etanol hidratado","scope":1,"category":"Combustão móvel","fe":1.46,"unit":"L","source":"MCTI 2024","gwp":None},
+    {"id":6,"name":"Carvão mineral","scope":1,"category":"Combustão estacionária","fe":2.54,"unit":"kg","source":"SEEG v12","gwp":None},
+    {"id":9,"name":"Energia elétrica SIN","scope":2,"category":"Eletricidade comprada (localização)","fe":0.0408,"unit":"kWh","source":"MCTI 2024","gwp":None},
+    {"id":10,"name":"Transporte rodoviário (carga)","scope":3,"category":"Cat. 4 — Transporte upstream","fe":0.089,"unit":"t·km","source":"SEEG v12","gwp":None},
+    {"id":11,"name":"Viagem aérea nacional","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":0.158,"unit":"pkm","source":"IPCC AR6","gwp":None},
+    {"id":12,"name":"Resíduos sólidos (aterro)","scope":3,"category":"Cat. 5 — Resíduos","fe":0.52,"unit":"kg","source":"MCTI 2024","gwp":None},
 ]
 
 CURRENT_YEARS = list(range(date.today().year, 2014, -1))
@@ -253,7 +298,8 @@ def accept_invite(token):
 def admin_dashboard():
     if current_user.role != "admin":
         return redirect(url_for("client_dashboard"))
-    companies = Company.query.order_by(Company.created_at.desc()).all()
+    show_archived = request.args.get("archived") == "1"
+    companies = Company.query.filter_by(archived=show_archived).order_by(Company.created_at.desc()).all()
     total_co2e = db.session.query(db.func.sum(EmissionEntry.total_co2e)).scalar() or 0
     recent_activity = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(10).all()
     return render_template("admin_dashboard.html",
@@ -267,7 +313,7 @@ def admin_dashboard():
 def admin_dashboard_full():
     if current_user.role != "admin":
         return redirect(url_for("client_dashboard_full"))
-    companies = Company.query.order_by(Company.name).all()
+    companies = Company.query.filter_by(archived=False).order_by(Company.name).all()
     company_id = request.args.get("company_id", type=int)
     scope = request.args.get("scope", type=int)
     category = request.args.get("category","")
@@ -375,6 +421,7 @@ def admin_new_entry():
         quantity = float(request.form["quantity"])
         ef = float(request.form["emission_factor"])
         total = round(quantity * ef / 1000, 6)
+        gwp_val = request.form.get("gwp")
         entry = EmissionEntry(
             company_id=company_id,
             inventory_year=int(request.form.get("inventory_year", date.today().year)),
@@ -384,6 +431,7 @@ def admin_new_entry():
             fuel_type=request.form.get("fuel_type"),
             quantity=quantity, unit=request.form["unit"],
             emission_factor=ef,
+            gwp=float(gwp_val) if gwp_val else None,
             ef_source=request.form.get("ef_source","MCTI 2024"),
             total_co2e=total,
             period=request.form.get("period"),
@@ -397,7 +445,8 @@ def admin_new_entry():
         return redirect(url_for("company_detail", company_id=company_id))
     presel = request.args.get("company", type=int)
     return render_template("new_entry.html", companies=companies,
-        emission_factors=EMISSION_FACTORS, current_years=CURRENT_YEARS, presel=presel, today=date.today())
+        emission_factors=EMISSION_FACTORS, fugitive_gases=FUGITIVE_GASES,
+        current_years=CURRENT_YEARS, presel=presel, today=date.today())
 
 # ─── USUÁRIOS (ADMIN) ─────────────────────────────────────────────────────────
 
@@ -407,7 +456,7 @@ def admin_users():
     if current_user.role != "admin":
         return redirect(url_for("index"))
     users = User.query.order_by(User.role, User.name).all()
-    companies = Company.query.order_by(Company.name).all()
+    companies = Company.query.filter_by(archived=False).order_by(Company.name).all()
     return render_template("admin_users.html", users=users, companies=companies)
 
 @app.route("/admin/usuarios/novo", methods=["POST"])
@@ -554,6 +603,7 @@ def client_new_entry():
         quantity = float(request.form["quantity"])
         ef = float(request.form["emission_factor"])
         total = round(quantity * ef / 1000, 6)
+        gwp_val = request.form.get("gwp")
         entry = EmissionEntry(
             company_id=company.id,
             inventory_year=int(request.form.get("inventory_year", date.today().year)),
@@ -563,6 +613,7 @@ def client_new_entry():
             fuel_type=request.form.get("fuel_type"),
             quantity=quantity, unit=request.form["unit"],
             emission_factor=ef,
+            gwp=float(gwp_val) if gwp_val else None,
             ef_source=request.form.get("ef_source","MCTI 2024"),
             total_co2e=total,
             period=request.form.get("period"),
@@ -578,7 +629,8 @@ def client_new_entry():
     now_month = date.today().strftime("%Y-%m")
     allowed_scopes = [int(s) for s in (current_user.scope_access or "123")]
     return render_template("client_new_entry.html", company=company,
-        emission_factors=EMISSION_FACTORS, current_years=CURRENT_YEARS,
+        emission_factors=EMISSION_FACTORS, fugitive_gases=FUGITIVE_GASES,
+        current_years=CURRENT_YEARS,
         now_month=now_month, allowed_scopes=allowed_scopes)
 
 @app.route("/cliente/historico")
@@ -620,6 +672,85 @@ def get_efs():
     return __import__("flask").jsonify(EMISSION_FACTORS)
 
 # ─── SEED ─────────────────────────────────────────────────────────────────────
+
+
+# ─── EXCLUIR LANÇAMENTO ──────────────────────────────────────────────────────
+
+@app.route("/admin/lancamento/<int:entry_id>/excluir", methods=["POST"])
+@login_required
+def delete_entry(entry_id):
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+    entry = EmissionEntry.query.get_or_404(entry_id)
+    company_id = entry.company_id
+    name = entry.source_name
+    db.session.delete(entry)
+    db.session.commit()
+    log_activity(f"Lançamento excluído: {name}", company_id=company_id)
+    flash(f"Lançamento '{name}' excluído com sucesso.", "success")
+    return redirect(request.referrer or url_for("admin_dashboard"))
+
+@app.route("/cliente/lancamento/<int:entry_id>/excluir", methods=["POST"])
+@login_required
+def client_delete_entry(entry_id):
+    entry = EmissionEntry.query.get_or_404(entry_id)
+    if entry.company_id != current_user.company_id:
+        flash("Acesso negado.", "error")
+        return redirect(url_for("client_dashboard_full"))
+    name = entry.source_name
+    db.session.delete(entry)
+    db.session.commit()
+    log_activity(f"Lançamento excluído pelo cliente: {name}", company_id=current_user.company_id)
+    flash(f"Lançamento '{name}' excluído.", "success")
+    return redirect(url_for("client_dashboard_full"))
+
+# ─── ARQUIVAR / EXCLUIR CLIENTE ───────────────────────────────────────────────
+
+@app.route("/admin/clientes/<int:company_id>/arquivar", methods=["POST"])
+@login_required
+def archive_company(company_id):
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+    company = Company.query.get_or_404(company_id)
+    company.archived = True
+    db.session.commit()
+    log_activity(f"Cliente arquivado: {company.name}", company_id=company_id)
+    flash(f"Cliente '{company.name}' arquivado. Não aparecerá nos dashboards.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+@app.route("/admin/clientes/<int:company_id>/reativar", methods=["POST"])
+@login_required
+def unarchive_company(company_id):
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+    company = Company.query.get_or_404(company_id)
+    company.archived = False
+    db.session.commit()
+    log_activity(f"Cliente reativado: {company.name}", company_id=company_id)
+    flash(f"Cliente '{company.name}' reativado.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+@app.route("/admin/clientes/<int:company_id>/excluir", methods=["POST"])
+@login_required
+def delete_company(company_id):
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+    company = Company.query.get_or_404(company_id)
+    name = company.name
+    # Desvincular usuários
+    User.query.filter_by(company_id=company_id).update({"company_id": None})
+    db.session.delete(company)
+    db.session.commit()
+    log_activity(f"Cliente excluído permanentemente: {name}")
+    flash(f"Cliente '{name}' excluído permanentemente.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+# ─── API GASES FUGITIVOS ─────────────────────────────────────────────────────
+
+@app.route("/api/fugitive-gases")
+@login_required
+def get_fugitive_gases():
+    return __import__("flask").jsonify(FUGITIVE_GASES)
 
 def seed_data():
     if User.query.count() > 0:

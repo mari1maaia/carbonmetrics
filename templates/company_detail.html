@@ -13,7 +13,8 @@
     <span class="status-pill {% if company.status == 'concluido' %}status-concluido{% elif company.status == 'revisao' %}status-revisao{% else %}status-andamento{% endif %}">
       {{ 'Concluído' if company.status == 'concluido' else ('Em revisão' if company.status == 'revisao' else 'Em andamento') }}
     </span>
-    <a href="{{ url_for('admin_new_entry') }}?company={{ company.id }}" class="btn btn-primary btn-sm">+ Lançar emissão</a>
+    <a href="{{ url_for('admin_new_entry') }}?company={{ company.id }}" class="btn btn-secondary btn-sm">+ Lançar manual</a>
+    <a href="{{ url_for('upload_ghg_spreadsheet', company_id=company.id) }}" class="btn btn-primary btn-sm">📊 Importar planilha GHG</a>
   </div>
 </div>
 

@@ -193,6 +193,10 @@
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Lançar dados
       </a>
+      <a href="{{ url_for('client_upload_spreadsheet') }}" class="nav-link {% if request.endpoint == 'client_upload_spreadsheet' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importar planilha
+      </a>
       <a href="{{ url_for('client_history') }}" class="nav-link {% if request.endpoint == 'client_history' %}active{% endif %}">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Histórico por ano

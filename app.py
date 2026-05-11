@@ -4,7 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail, Message
 from datetime import datetime, date
-import secrets, string, os
+import secrets, string, os, io
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", secrets.token_hex(32))
@@ -809,6 +809,261 @@ def delete_company(company_id):
 @login_required
 def get_fugitive_gases():
     return __import__("flask").jsonify(FUGITIVE_GASES)
+
+
+# ─── UPLOAD PLANILHA GHG PROTOCOL ────────────────────────────────────────────
+
+def parse_ghg_spreadsheet(file_bytes, company_id, inventory_year, created_by_id):
+    """
+    Lê a Ferramenta GHG Protocol (.xlsx) e retorna lista de EmissionEntry.
+    Abas processadas: Combustão estacionária, Combustão móvel,
+    Emissões fugitivas, En. elétrica (localização),
+    Emissões casa-trabalho.
+    """
+    import openpyxl, io
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    entries = []
+    errors = []
+
+    def safe_float(v):
+        try:
+            f = float(str(v).replace(",", "."))
+            return f if f > 0 else None
+        except Exception:
+            return None
+
+    def make_entry(scope, category, source_name, fuel_type, quantity, unit, ef, ef_source, gwp=None):
+        if quantity and quantity > 0 and ef and ef > 0:
+            total = round(quantity * ef / 1000, 6)
+            return EmissionEntry(
+                company_id=company_id,
+                inventory_year=inventory_year,
+                scope=scope,
+                category=category,
+                source_name=source_name,
+                fuel_type=fuel_type,
+                quantity=quantity,
+                unit=unit,
+                emission_factor=ef,
+                ef_source=ef_source,
+                gwp=gwp,
+                total_co2e=total,
+                period=str(inventory_year) + "-01",
+                notes="Importado via planilha GHG Protocol",
+                created_by=created_by_id
+            )
+        return None
+
+    # Mapa de combustíveis para FE (kgCO2e/unidade)
+    FUEL_FE_MAP = {
+        "gasolina automotiva": (2.27, "L", "MCTI 2024"),
+        "gasolina": (2.27, "L", "MCTI 2024"),
+        "óleo diesel": (2.68, "L", "MCTI 2024"),
+        "diesel": (2.68, "L", "MCTI 2024"),
+        "etanol hidratado": (1.46, "L", "MCTI 2024"),
+        "etanol anidro": (1.46, "L", "MCTI 2024"),
+        "gás natural": (2.02, "m³", "MCTI 2024"),
+        "glp": (3.01, "kg", "MCTI 2024"),
+        "carvão metalúrgico nacional": (2543.0, "Toneladas", "MCTI 2024"),
+        "carvão metalúrgico importado": (2931.0, "Toneladas", "MCTI 2024"),
+        "querosene": (2.52, "L", "MCTI 2024"),
+        "biodiesel": (0.0, "L", "MCTI 2024"),
+    }
+
+    def get_fe(fuel_name):
+        if not fuel_name:
+            return None, None, None
+        key = str(fuel_name).lower().strip()
+        for k, v in FUEL_FE_MAP.items():
+            if k in key:
+                return v
+        return None, None, None
+
+    # GWP map para fugitivas
+    GWP_MAP = {
+        "hfc-32": 677, "hfc-125": 3170, "hfc-134a": 1300, "hfc-410a": 2088,
+        "r-410a": 2088, "r-22": 1810, "hfc-23": 12400, "sf6": 23500,
+        "co2": 1, "dióxido de carbono": 1, "ch4": 28, "metano": 28,
+        "n2o": 265, "óxido nitroso": 265, "hfc-227ea": 3350, "hfc-143a": 4800,
+    }
+    def get_gwp(gas_name):
+        if not gas_name: return 1
+        key = str(gas_name).lower().strip()
+        for k, v in GWP_MAP.items():
+            if k in key: return v
+        return 1
+
+    # ── 1. COMBUSTÃO ESTACIONÁRIA ──────────────────────────────────────────
+    if "Combustão estacionária" in wb.sheetnames:
+        ws = wb["Combustão estacionária"]
+        for i, row in enumerate(ws.iter_rows(min_row=47, max_row=146, values_only=True), 47):
+            r = list(row)
+            if len(r) < 10: continue
+            source = r[1]  # Registro da fonte
+            desc   = r[2]  # Descrição
+            fuel   = r[3]  # Combustível
+            qty    = safe_float(r[4])   # Quantidade consumida
+            unit   = r[5] or "un"      # Unidades
+            if not source or not qty: continue
+            fe, fe_unit, fe_src = get_fe(fuel)
+            if fe is None:
+                errors.append(f"Combustão estacionária L{i}: FE não encontrado para '{fuel}'")
+                fe, fe_src = 2.02, "MCTI 2024 (estimado)"
+            e = make_entry(1, "Combustão estacionária",
+                           f"{source} — {desc}" if desc else str(source),
+                           str(fuel) if fuel else "Combustível",
+                           qty, str(unit), fe, fe_src)
+            if e: entries.append(e)
+
+    # ── 2. COMBUSTÃO MÓVEL ────────────────────────────────────────────────
+    if "Combustão móvel" in wb.sheetnames:
+        ws = wb["Combustão móvel"]
+        for i, row in enumerate(ws.iter_rows(min_row=48, max_row=200, values_only=True), 48):
+            r = list(row)
+            if len(r) < 20: continue
+            source = r[1]  # Nome do veículo / registro
+            desc   = r[2]  # Placa / descrição
+            vtype  = r[3]  # Tipo de veículo
+            qty    = safe_float(r[17])  # Consumo anual
+            unit   = r[18] or "L"      # Unidade
+            fuel   = r[19]             # Combustível principal
+            if not source or not qty: continue
+            fe, fe_unit, fe_src = get_fe(fuel)
+            if fe is None:
+                if "diesel" in str(vtype).lower(): fe, fe_src = 2.68, "MCTI 2024"
+                elif "flex" in str(vtype).lower() or "gasolina" in str(vtype).lower(): fe, fe_src = 2.27, "MCTI 2024"
+                else: fe, fe_src = 2.27, "MCTI 2024 (estimado)"
+            e = make_entry(1, "Combustão móvel",
+                           f"{source} — {desc}" if desc else str(source),
+                           str(fuel) if fuel else str(vtype),
+                           qty, str(unit), fe, fe_src)
+            if e: entries.append(e)
+
+    # ── 3. EMISSÕES FUGITIVAS ─────────────────────────────────────────────
+    if "Emissões fugitivas" in wb.sheetnames:
+        ws = wb["Emissões fugitivas"]
+        for i, row in enumerate(ws.iter_rows(min_row=61, max_row=200, values_only=True), 61):
+            r = list(row)
+            if len(r) < 10: continue
+            source   = r[1]   # Registro
+            gas_name = r[2]   # Gás
+            gwp_val  = safe_float(r[3]) or get_gwp(r[2])
+            qty      = safe_float(r[6])  # Recarga (kg)
+            if not source or not qty or not gas_name: continue
+            fe = gwp_val  # FE para fugitivas = GWP
+            e = make_entry(1, "Emissões fugitivas",
+                           str(source), str(gas_name),
+                           qty, "kg", fe, "MCTI 2024 / IPCC AR5", gwp=gwp_val)
+            if e: entries.append(e)
+
+    # ── 4. ENERGIA ELÉTRICA ───────────────────────────────────────────────
+    if "En. elétrica (localização)" in wb.sheetnames:
+        ws = wb["En. elétrica (localização)"]
+        for i, row in enumerate(ws.iter_rows(min_row=41, max_row=120, values_only=True), 41):
+            r = list(row)
+            if len(r) < 17: continue
+            source = r[1]  # Registro
+            desc   = r[2]  # Descrição
+            qty    = safe_float(r[16])  # Total anual MWh
+            if not source or not qty: continue
+            e = make_entry(2, "Eletricidade comprada (localização)",
+                           f"{source} — {desc}" if desc else str(source),
+                           "Energia elétrica SIN",
+                           qty * 1000, "kWh", 0.0408, "MCTI 2024")  # MWh→kWh
+            if e: entries.append(e)
+
+    # ── 5. CASA-TRABALHO ──────────────────────────────────────────────────
+    if "Emissões casa-trabalho" in wb.sheetnames:
+        ws = wb["Emissões casa-trabalho"]
+        for i, row in enumerate(ws.iter_rows(min_row=40, max_row=200, values_only=True), 40):
+            r = list(row)
+            if len(r) < 11: continue
+            source = r[1]  # Colaborador / registro
+            desc   = r[2]  # Percurso
+            ttype  = r[3]  # Tipo de transporte
+            pax    = safe_float(r[4]) or 1
+            dist   = safe_float(r[5])  # Distância km
+            days   = safe_float(r[6]) or 230
+            fe_g   = safe_float(r[7])  # gCO2/P.km
+            if not source or not dist or not fe_g: continue
+            pkm    = dist * days * pax  # total pkm/ano
+            fe_kg  = fe_g / 1000        # g → kg
+            e = make_entry(3, "Cat. 7 — Deslocamento de funcionários",
+                           f"{source} — {desc}" if desc else str(source),
+                           str(ttype) if ttype else "Transporte",
+                           pkm, "pkm", fe_kg, "GHG Protocol")
+            if e: entries.append(e)
+
+    return entries, errors
+
+
+@app.route("/admin/clientes/<int:company_id>/upload-planilha", methods=["GET", "POST"])
+@login_required
+def upload_ghg_spreadsheet(company_id):
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+    company = Company.query.get_or_404(company_id)
+    if request.method == "POST":
+        f = request.files.get("file")
+        inventory_year = int(request.form.get("inventory_year", date.today().year))
+        if not f or not f.filename.endswith((".xlsx", ".xlsm")):
+            flash("Envie um arquivo .xlsx válido.", "error")
+            return redirect(request.url)
+        file_bytes = f.read()
+        entries, errors = parse_ghg_spreadsheet(file_bytes, company_id, inventory_year, current_user.id)
+        if not entries:
+            flash("Nenhum dado encontrado na planilha. Verifique se está preenchida.", "error")
+            return redirect(request.url)
+        for e in entries:
+            db.session.add(e)
+        db.session.commit()
+        log_activity(
+            f"Planilha GHG Protocol importada: {len(entries)} lançamentos",
+            detail=f"Arquivo: {f.filename} | Erros: {len(errors)}",
+            company_id=company_id
+        )
+        msg = f"Importação concluída! {len(entries)} lançamentos criados."
+        if errors:
+            msg += f" ({len(errors)} avisos — alguns FEs foram estimados)."
+        flash(msg, "success")
+        return redirect(url_for("company_detail", company_id=company_id))
+    return render_template("upload_spreadsheet.html",
+        company=company, current_years=CURRENT_YEARS, now_year=date.today().year)
+
+
+@app.route("/cliente/upload-planilha", methods=["GET", "POST"])
+@login_required
+def client_upload_spreadsheet():
+    if current_user.role == "admin":
+        return redirect(url_for("index"))
+    company = Company.query.get(current_user.company_id)
+    if not company:
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        f = request.files.get("file")
+        inventory_year = int(request.form.get("inventory_year", date.today().year))
+        if not f or not f.filename.endswith((".xlsx", ".xlsm")):
+            flash("Envie um arquivo .xlsx válido.", "error")
+            return redirect(request.url)
+        file_bytes = f.read()
+        entries, errors = parse_ghg_spreadsheet(file_bytes, company.id, inventory_year, current_user.id)
+        if not entries:
+            flash("Nenhum dado encontrado na planilha. Verifique se está preenchida.", "error")
+            return redirect(request.url)
+        for e in entries:
+            db.session.add(e)
+        db.session.commit()
+        log_activity(
+            f"Planilha GHG Protocol importada pelo cliente: {len(entries)} lançamentos",
+            company_id=company.id
+        )
+        msg = f"Importação concluída! {len(entries)} lançamentos criados."
+        if errors:
+            msg += f" ({len(errors)} avisos de FEs estimados)."
+        flash(msg, "success")
+        return redirect(url_for("client_dashboard_full"))
+    return render_template("upload_spreadsheet.html",
+        company=company, current_years=CURRENT_YEARS, now_year=date.today().year)
 
 def seed_data():
     if User.query.count() > 0:

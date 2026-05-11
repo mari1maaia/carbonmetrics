@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
@@ -1213,3 +1213,490 @@ with app.app_context():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
+
+# ─── EXPORTAR PDF DO INVENTÁRIO ───────────────────────────────────────────────
+
+@app.route("/admin/clientes/<int:company_id>/exportar-pdf")
+@login_required
+def export_company_pdf(company_id):
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
+                                    TableStyle, HRFlowable, PageBreak, KeepTogether)
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+    from reportlab.graphics.shapes import Drawing, Rect, String
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+    from reportlab.graphics import renderPDF
+    import io as _io
+    from datetime import datetime as dt
+
+    company = Company.query.get_or_404(company_id)
+    inv_year = request.args.get("year", type=int)
+
+    # Buscar lançamentos
+    q = EmissionEntry.query.filter_by(company_id=company_id)
+    if inv_year:
+        q = q.filter_by(inventory_year=inv_year)
+    else:
+        # Usar o ano mais recente
+        latest = db.session.query(db.func.max(EmissionEntry.inventory_year)).filter_by(company_id=company_id).scalar()
+        inv_year = latest or dt.now().year
+        q = q.filter_by(inventory_year=inv_year)
+    emissions = q.all()
+
+    # Totais por escopo e categoria
+    e1_mobile = sum(e.total_co2e for e in emissions if e.scope == 1 and "móvel" in (e.category or "").lower())
+    e1_fugitive = sum(e.total_co2e for e in emissions if e.scope == 1 and "fugit" in (e.category or "").lower())
+    e1_stationary = sum(e.total_co2e for e in emissions if e.scope == 1 and "estacion" in (e.category or "").lower())
+    e1_process = sum(e.total_co2e for e in emissions if e.scope == 1 and "processo" in (e.category or "").lower())
+    e1_other = sum(e.total_co2e for e in emissions if e.scope == 1
+                   and not any(k in (e.category or "").lower() for k in ["móvel","fugit","estacion","processo"]))
+    e1_total = sum(e.total_co2e for e in emissions if e.scope == 1)
+    e2_total = sum(e.total_co2e for e in emissions if e.scope == 2)
+    e3_total = sum(e.total_co2e for e in emissions if e.scope == 3)
+    grand_total = e1_total + e2_total + e3_total
+
+    # Responsável técnico (admin logado)
+    admin_user = User.query.filter_by(role="admin").first()
+    resp_name = admin_user.name if admin_user else "Interbio Tecnologia Ambiental"
+    resp_job = admin_user.job_title if (admin_user and admin_user.job_title) else "Responsável Técnico"
+
+    # ── CORES E ESTILOS ──────────────────────────────────────────────────
+    TEAL       = colors.HexColor("#1B5E6B")
+    TEAL_LIGHT = colors.HexColor("#2DBD8F")
+    GREEN      = colors.HexColor("#2DBD8F")
+    GRAY       = colors.HexColor("#5a5a57")
+    LIGHT_GRAY = colors.HexColor("#f5f5f3")
+    WHITE      = colors.white
+    BLACK      = colors.HexColor("#1a1a18")
+
+    styles = getSampleStyleSheet()
+
+    def sty(name, **kwargs):
+        base = styles["Normal"]
+        return ParagraphStyle(name, parent=base, **kwargs)
+
+    s_title      = sty("title",      fontSize=22, textColor=TEAL,  fontName="Helvetica-Bold",
+                        spaceAfter=6, alignment=TA_CENTER)
+    s_subtitle   = sty("subtitle",   fontSize=13, textColor=TEAL,  fontName="Helvetica-Bold",
+                        spaceAfter=4, alignment=TA_CENTER)
+    s_body       = sty("body",       fontSize=10, textColor=BLACK, fontName="Helvetica",
+                        spaceAfter=6, leading=16, alignment=TA_JUSTIFY)
+    s_section    = sty("section",    fontSize=13, textColor=TEAL,  fontName="Helvetica-Bold",
+                        spaceBefore=14, spaceAfter=6)
+    s_subsection = sty("subsect",    fontSize=11, textColor=TEAL,  fontName="Helvetica-Bold",
+                        spaceBefore=8, spaceAfter=4)
+    s_caption    = sty("caption",    fontSize=9,  textColor=GRAY,  fontName="Helvetica-Oblique",
+                        spaceAfter=4, alignment=TA_CENTER)
+    s_footer     = sty("footer",     fontSize=8,  textColor=GRAY,  fontName="Helvetica",
+                        alignment=TA_CENTER)
+    s_toc        = sty("toc",        fontSize=10, textColor=BLACK, fontName="Helvetica",
+                        spaceAfter=3, leftIndent=10)
+    s_toc_title  = sty("toc_title",  fontSize=11, textColor=TEAL,  fontName="Helvetica-Bold",
+                        spaceAfter=8)
+    s_center     = sty("center",     fontSize=10, textColor=BLACK, fontName="Helvetica",
+                        alignment=TA_CENTER)
+    s_bold       = sty("bold",       fontSize=10, textColor=BLACK, fontName="Helvetica-Bold",
+                        spaceAfter=4)
+
+    def header_bar(text):
+        """Barra colorida estilo Interbio como separador de seção."""
+        d = Drawing(16*cm, 1.2*cm)
+        d.add(Rect(0, 0, 16*cm, 1.2*cm, fillColor=TEAL, strokeColor=None))
+        d.add(String(12, 3, text, fontSize=11, fillColor=WHITE, fontName="Helvetica-Bold"))
+        return d
+
+    def teal_table(data, col_widths, header_rows=1):
+        t = Table(data, colWidths=col_widths)
+        style = [
+            ("BACKGROUND", (0,0), (-1, header_rows-1), TEAL),
+            ("TEXTCOLOR",  (0,0), (-1, header_rows-1), WHITE),
+            ("FONTNAME",   (0,0), (-1, header_rows-1), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,-1), 9),
+            ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+            ("ROWBACKGROUNDS", (0, header_rows), (-1,-1), [WHITE, LIGHT_GRAY]),
+            ("GRID",       (0,0), (-1,-1), 0.4, colors.HexColor("#cccccc")),
+            ("TOPPADDING", (0,0), (-1,-1), 5),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+        ]
+        t.setStyle(TableStyle(style))
+        return t
+
+    # ── BUFFER ──────────────────────────────────────────────────────────
+    buf = _io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+        leftMargin=2.5*cm, rightMargin=2.5*cm,
+        topMargin=2.5*cm,  bottomMargin=2.5*cm,
+        title=f"Inventário GEE {company.name} {inv_year}",
+        author="InterMetrics — Interbio & InterGreen")
+
+    story = []
+    W = 16 * cm  # largura útil
+
+    # ═══════════════════════════════════════════════════════════════════
+    # CAPA
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(Spacer(1, 1.5*cm))
+
+    # Bloco teal superior
+    capa_top = Table([[""], ["INVENTÁRIO DE GASES DE EFEITO ESTUFA"], [f"ANO DE {inv_year}"], [company.name.upper()], [""]],
+        colWidths=[W])
+    capa_top.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), TEAL),
+        ("TEXTCOLOR",  (0,1), (-1,1),  WHITE),
+        ("TEXTCOLOR",  (0,2), (-1,2),  colors.HexColor("#a8d8c8")),
+        ("TEXTCOLOR",  (0,3), (-1,3),  WHITE),
+        ("FONTNAME",   (0,1), (-1,1),  "Helvetica-Bold"),
+        ("FONTNAME",   (0,2), (-1,2),  "Helvetica"),
+        ("FONTNAME",   (0,3), (-1,3),  "Helvetica-Bold"),
+        ("FONTSIZE",   (0,1), (-1,1),  16),
+        ("FONTSIZE",   (0,2), (-1,2),  12),
+        ("FONTSIZE",   (0,3), (-1,3),  14),
+        ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+        ("TOPPADDING", (0,0), (-1,-1), 8),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+    ]))
+    story.append(capa_top)
+    story.append(Spacer(1, 0.8*cm))
+
+    # Linha verde
+    story.append(HRFlowable(width=W, thickness=4, color=GREEN, spaceAfter=0.5*cm))
+
+    # Identificação capa
+    story.append(Paragraph(f"Elaboração: {resp_name}", s_center))
+    story.append(Paragraph(f"{resp_job}", s_center))
+    story.append(Spacer(1, 0.5*cm))
+    story.append(Paragraph(f"Interbio Tecnologia Ambiental &amp; InterGreen", sty("capa_empresa",
+        fontSize=11, textColor=TEAL, fontName="Helvetica-Bold", alignment=TA_CENTER)))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph(f"Gerado em {dt.now().strftime('%d/%m/%Y')}", s_footer))
+
+    story.append(PageBreak())
+
+    # ═══════════════════════════════════════════════════════════════════
+    # SUMÁRIO
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(Paragraph("SUMÁRIO", s_section))
+    story.append(HRFlowable(width=W, thickness=1, color=TEAL, spaceAfter=10))
+    toc_items = [
+        ("1.", "IDENTIFICAÇÃO", "3"),
+        ("2.", "INTRODUÇÃO", "3"),
+        ("3.", "RESUMO EXECUTIVO", "4"),
+        ("4.", "METODOLOGIA", "5"),
+        ("5.", "RESULTADOS", "6"),
+        ("6.", "RESUMO DOS RESULTADOS", "7"),
+        ("7.", "CONCLUSÃO", "8"),
+    ]
+    for num, title, pg in toc_items:
+        row_data = [[Paragraph(f"<b>{num}</b> {title}", s_toc), Paragraph(pg, sty("pg", fontSize=10, alignment=TA_CENTER))]]
+        t = Table(row_data, colWidths=[14*cm, 2*cm])
+        t.setStyle(TableStyle([
+            ("LINEBELOW", (0,0), (-1,-1), 0.5, colors.HexColor("#dddddd")),
+            ("TOPPADDING", (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ]))
+        story.append(t)
+    story.append(PageBreak())
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 1. IDENTIFICAÇÃO
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(header_bar("1. IDENTIFICAÇÃO"))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("1.1 EMPREENDIMENTO", s_subsection))
+
+    id_data = [
+        ["RAZÃO SOCIAL", company.name],
+        ["CNPJ", company.cnpj or "—"],
+        ["SETOR / RAMO DE ATIVIDADE", company.sector or "—"],
+        ["PERÍODO INVENTARIADO", f"1 de janeiro de {inv_year} a 31 de dezembro de {inv_year}"],
+    ]
+    t = Table(id_data, colWidths=[6*cm, 10*cm])
+    t.setStyle(TableStyle([
+        ("FONTNAME",   (0,0), (0,-1), "Helvetica-Bold"),
+        ("FONTSIZE",   (0,0), (-1,-1), 9),
+        ("BACKGROUND", (0,0), (0,-1), LIGHT_GRAY),
+        ("GRID",       (0,0), (-1,-1), 0.4, colors.HexColor("#cccccc")),
+        ("TOPPADDING", (0,0), (-1,-1), 6),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+        ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 0.4*cm))
+
+    story.append(Paragraph("1.2 RESPONSÁVEL TÉCNICO PELA ELABORAÇÃO DO PROJETO", s_subsection))
+    resp_data = [
+        ["NOME DO RESPONSÁVEL TÉCNICO", resp_name],
+        ["EMPRESA RESPONSÁVEL", "Interbio Tecnologia Ambiental"],
+        ["PLATAFORMA", "InterMetrics — Plataforma de Métricas & Processos ESG e Carbono"],
+    ]
+    t2 = Table(resp_data, colWidths=[6*cm, 10*cm])
+    t2.setStyle(TableStyle([
+        ("FONTNAME",   (0,0), (0,-1), "Helvetica-Bold"),
+        ("FONTSIZE",   (0,0), (-1,-1), 9),
+        ("BACKGROUND", (0,0), (0,-1), LIGHT_GRAY),
+        ("GRID",       (0,0), (-1,-1), 0.4, colors.HexColor("#cccccc")),
+        ("TOPPADDING", (0,0), (-1,-1), 6),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+    ]))
+    story.append(t2)
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 2. INTRODUÇÃO
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(Spacer(1, 0.5*cm))
+    story.append(header_bar("2. INTRODUÇÃO"))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph(
+        "O aumento da concentração de Gases de Efeito Estufa (GEE) na atmosfera tem intensificado o debate "
+        "sobre estratégias de mitigação aos efeitos causados pelas mudanças climáticas. O Inventário de Emissões "
+        "de Gases de Efeito Estufa é o instrumento gerencial que permite quantificar as emissões de GEE de uma "
+        "determinada organização, possibilitando conhecer o perfil das emissões resultantes de suas atividades, "
+        "bem como elaborar um plano de ação com estratégias e metas de redução e/ou compensação.", s_body))
+    story.append(Paragraph(
+        "O Brasil, como membro signatário da Convenção-Quadro das Nações Unidas sobre Mudança do Clima (UNFCCC), "
+        "instituiu em 2009 a Política Nacional sobre Mudança do Clima (PNMC), pela Lei nº 12.187, oficializando "
+        "o compromisso voluntário de redução de emissões. A realização de inventários de GEE permite às organizações "
+        "visualizarem oportunidades no mercado de carbono, atrair novos investimentos e planejar processos com "
+        "eficiência econômica, energética e operacional.", s_body))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 3. RESUMO EXECUTIVO
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(PageBreak())
+    story.append(header_bar("3. RESUMO EXECUTIVO"))
+    story.append(Spacer(1, 0.3*cm))
+
+    escopos_texto = []
+    if e1_total > 0:
+        escopos_texto.append(f"Escopo 1 (emissões diretas): <b>{e1_total:.2f} tCO₂e</b>")
+    if e2_total > 0:
+        escopos_texto.append(f"Escopo 2 (energia elétrica adquirida): <b>{e2_total:.2f} tCO₂e</b>")
+    if e3_total > 0:
+        escopos_texto.append(f"Escopo 3 (cadeia de valor): <b>{e3_total:.2f} tCO₂e</b>")
+
+    story.append(Paragraph(
+        f"O presente Inventário avaliou as emissões de GEE das atividades da <b>{company.name}</b> "
+        f"para o ano de <b>{inv_year}</b>, com base na metodologia do GHG Protocol. "
+        f"As emissões totalizaram <b>{grand_total:.2f} tCO₂e/ano</b>, sendo: "
+        + "; ".join(escopos_texto) + ".", s_body))
+
+    # Tabela resumo executivo
+    exec_rows = [["ESCOPO", "FONTE DE EMISSÃO", "EMISSÕES (tCO₂e)"]]
+    if e1_stationary > 0:
+        exec_rows.append(["Escopo 1", "Combustão estacionária", f"{e1_stationary:.2f}"])
+    if e1_mobile > 0:
+        exec_rows.append(["Escopo 1", "Combustão móvel", f"{e1_mobile:.2f}"])
+    if e1_fugitive > 0:
+        exec_rows.append(["Escopo 1", "Emissões fugitivas", f"{e1_fugitive:.2f}"])
+    if e1_process > 0:
+        exec_rows.append(["Escopo 1", "Processo industrial", f"{e1_process:.2f}"])
+    if e1_other > 0:
+        exec_rows.append(["Escopo 1", "Outras emissões diretas", f"{e1_other:.2f}"])
+    if e2_total > 0:
+        exec_rows.append(["Escopo 2", "Aquisição de energia elétrica", f"{e2_total:.2f}"])
+    if e3_total > 0:
+        exec_rows.append(["Escopo 3", "Cadeia de valor", f"{e3_total:.2f}"])
+    exec_rows.append(["", "TOTAL", f"{grand_total:.2f}"])
+
+    t_exec = teal_table(exec_rows, [4*cm, 8*cm, 4*cm])
+    t_exec.setStyle(TableStyle([
+        *t_exec._tblStyle._cmds,
+        ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
+        ("BACKGROUND", (0,-1), (-1,-1), colors.HexColor("#e8f4f0")),
+    ]))
+    story.append(t_exec)
+    story.append(Paragraph("Tabela 1: Resumo dos escopos e emissões inventariadas.", s_caption))
+
+    # Gráfico de barras simples com reportlab
+    story.append(Spacer(1, 0.4*cm))
+    chart_data = []
+    chart_labels = []
+    if e1_total > 0: chart_data.append(round(e1_total, 2)); chart_labels.append("Escopo 1")
+    if e2_total > 0: chart_data.append(round(e2_total, 2)); chart_labels.append("Escopo 2")
+    if e3_total > 0: chart_data.append(round(e3_total, 2)); chart_labels.append("Escopo 3")
+
+    if chart_data:
+        from reportlab.graphics.shapes import Drawing, String, Rect
+        from reportlab.graphics.charts.barcharts import VerticalBarChart
+        drawing = Drawing(W, 180)
+        bc = VerticalBarChart()
+        bc.x = 60; bc.y = 30; bc.height = 130; bc.width = W - 90
+        bc.data = [chart_data]
+        bc.bars[0].fillColor = TEAL
+        bc.valueAxis.valueMin = 0
+        bc.valueAxis.valueMax = max(chart_data) * 1.2
+        bc.valueAxis.valueStep = max(chart_data) / 5
+        bc.valueAxis.labels.fontSize = 8
+        bc.categoryAxis.categoryNames = chart_labels
+        bc.categoryAxis.labels.fontSize = 9
+        bc.categoryAxis.labels.fontName = "Helvetica"
+        drawing.add(bc)
+        story.append(drawing)
+        story.append(Paragraph("Gráfico 1: Total de emissões, em tCO₂e por Escopo.", s_caption))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 4. METODOLOGIA
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(PageBreak())
+    story.append(header_bar("4. METODOLOGIA"))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph(
+        "O <b>GHG Protocol</b> (Protocolo de Gases de Efeito Estufa) é a metodologia utilizada, "
+        "sendo a ferramenta mais utilizada mundialmente por empresas e governos para entender, quantificar "
+        "e gerenciar emissões de GEE. Desenvolvida pelo World Resources Institute (WRI) em associação com "
+        "o World Business Council for Sustainable Development (WBCSD), é compatível com as normas ISO e "
+        "com as metodologias do IPCC.", s_body))
+    story.append(Paragraph(
+        "Os fatores de emissão utilizados neste inventário são provenientes das seguintes fontes oficiais: "
+        "<b>MCTI 2024</b> (Ministério da Ciência, Tecnologia e Inovações), <b>SEEG v12</b> (Sistema de "
+        "Estimativas de Emissões e Remoções de Gases de Efeito Estufa) e <b>IPCC AR6</b> (Sexto Relatório "
+        "de Avaliação do Painel Intergovernamental sobre Mudanças Climáticas). Para emissões fugitivas, "
+        "os Potenciais de Aquecimento Global (GWP) seguem o IPCC AR5 (100 anos).", s_body))
+
+    story.append(Paragraph("4.1 PRINCÍPIOS DO INVENTÁRIO", s_subsection))
+    princ_data = [
+        ["PRINCÍPIO", "DESCRIÇÃO"],
+        ["Relevância", "O inventário reflete com exatidão as emissões da empresa e serve às necessidades de decisão."],
+        ["Integralidade", "Todas as fontes dentro dos limites do inventário são contabilizadas."],
+        ["Consistência", "Metodologia e limites são consistentes para todos os anos e fontes."],
+        ["Transparência", "Premissas e metodologias são claramente explicadas."],
+        ["Exatidão", "Estimativas são precisas, sem desvios sistemáticos acima ou abaixo do real."],
+    ]
+    t_princ = teal_table(princ_data, [4*cm, 12*cm])
+    story.append(t_princ)
+
+    story.append(Paragraph("4.2 GASES CONSIDERADOS", s_subsection))
+    # GWPs usados
+    gases_data = [
+        ["FÓRMULA", "NOME COMUM", "GWP (AR5/SAR)"],
+        ["CO₂", "Dióxido de carbono", "1"],
+        ["CH₄", "Metano", "28"],
+        ["N₂O", "Óxido nitroso", "265"],
+        ["R-410A", "HFC (mistura)", "2.088"],
+        ["R-407C", "HFC (mistura)", "1.774"],
+        ["SF₆", "Hexafluoreto de enxofre", "23.500"],
+    ]
+    t_gases = teal_table(gases_data, [3*cm, 8*cm, 5*cm])
+    story.append(t_gases)
+    story.append(Paragraph("Tabela 2: Potencial de Aquecimento Global (GWP) dos principais gases inventariados. Fonte: MCTI 2024 / IPCC AR5.", s_caption))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 5. RESULTADOS
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(PageBreak())
+    story.append(header_bar("5. RESULTADOS"))
+    story.append(Spacer(1, 0.3*cm))
+
+    # Resultados por escopo
+    scopes_info = [(1,"ESCOPO 1 — EMISSÕES DIRETAS"), (2,"ESCOPO 2 — ENERGIA ELÉTRICA"), (3,"ESCOPO 3 — CADEIA DE VALOR")]
+    for scope_num, scope_label in scopes_info:
+        scope_emissions = [e for e in emissions if e.scope == scope_num]
+        if not scope_emissions:
+            continue
+        story.append(Paragraph(scope_label, s_subsection))
+        scope_total = sum(e.total_co2e for e in scope_emissions)
+
+        # Categorias
+        cats = {}
+        for e in scope_emissions:
+            cats.setdefault(e.category, []).append(e)
+        for cat, cat_emis in cats.items():
+            cat_total = sum(e.total_co2e for e in cat_emis)
+            story.append(Paragraph(f"<b>{cat}</b> — {cat_total:.4f} tCO₂e", s_bold))
+            detail_data = [["FONTE", "COMBUSTÍVEL/GÁS", "QUANTIDADE", "UNIDADE", "FE", "tCO₂e"]]
+            for e in cat_emis[:20]:
+                detail_data.append([
+                    e.source_name[:30],
+                    (e.fuel_type or "—")[:20],
+                    f"{e.quantity:.2f}",
+                    e.unit or "—",
+                    f"{e.emission_factor:.4f}",
+                    f"{e.total_co2e:.4f}"
+                ])
+            t_detail = teal_table(detail_data, [4.5*cm, 3.5*cm, 2*cm, 1.5*cm, 2*cm, 2.5*cm])
+            story.append(t_detail)
+            story.append(Spacer(1, 0.2*cm))
+
+        story.append(Paragraph(f"<b>Total {scope_label.split('—')[0].strip()}:</b> {scope_total:.2f} tCO₂e", s_bold))
+        story.append(HRFlowable(width=W, thickness=0.5, color=colors.HexColor("#cccccc"), spaceAfter=8))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 6. RESUMO DOS RESULTADOS
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(PageBreak())
+    story.append(header_bar("6. RESUMO DOS RESULTADOS"))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph(
+        f"As emissões totais das atividades da <b>{company.name}</b> no ano de <b>{inv_year}</b> "
+        f"totalizaram <b>{grand_total:.2f} tCO₂e</b>, conforme apresentado na Tabela 4 e no Gráfico 2.", s_body))
+
+    # Tabela desagregada completa
+    full_rows = [["ESCOPO", "FONTE DE EMISSÃO", "EMISSÕES (tCO₂e)", "CONTRIBUIÇÃO (%)"]]
+    all_cats = {}
+    for e in emissions:
+        key = (e.scope, e.category)
+        all_cats[key] = all_cats.get(key, 0) + e.total_co2e
+    for (sc, cat), total in sorted(all_cats.items()):
+        pct = (total / grand_total * 100) if grand_total > 0 else 0
+        full_rows.append([f"Escopo {sc}", cat or "—", f"{total:.2f}", f"{pct:.1f}%"])
+    full_rows.append(["", "TOTAL", f"{grand_total:.2f}", "100%"])
+
+    t_full = teal_table(full_rows, [3*cm, 7*cm, 3.5*cm, 2.5*cm])
+    t_full.setStyle(TableStyle([
+        *t_full._tblStyle._cmds,
+        ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
+        ("BACKGROUND", (0,-1), (-1,-1), colors.HexColor("#e8f4f0")),
+    ]))
+    story.append(t_full)
+    story.append(Paragraph("Tabela 4: Emissões de GEE desagregadas por Escopo, em tCO₂e.", s_caption))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 7. CONCLUSÃO
+    # ═══════════════════════════════════════════════════════════════════
+    story.append(PageBreak())
+    story.append(header_bar("7. CONCLUSÃO"))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph(
+        f"O Inventário de emissões de GEE da <b>{company.name}</b> demonstrou uma emissão total de "
+        f"<b>{grand_total:.2f} tCO₂e</b> no ano de <b>{inv_year}</b>. "
+        "De acordo com o Art. 30 da Lei nº 15.042, de 11 de dezembro de 2024, o enquadramento nas "
+        "obrigações do Sistema Brasileiro de Comércio de Emissões de Gases de Efeito Estufa (SBCE) "
+        "se aplica apenas a operadores que emitam acima de 10.000 tCO₂e por ano.", s_body))
+
+    if grand_total < 10000:
+        story.append(Paragraph(
+            f"Com base nos dados apurados ({grand_total:.2f} tCO₂e) e conforme os critérios legais "
+            "estabelecidos, a empresa não se enquadra nos limites de obrigatoriedade definidos pelo SBCE, "
+            "estando dispensada das exigências regulatórias previstas no referido artigo.", s_body))
+    else:
+        story.append(Paragraph(
+            f"Com base nos dados apurados ({grand_total:.2f} tCO₂e), a empresa <b>se enquadra</b> nos "
+            "limites de obrigatoriedade definidos pelo SBCE, devendo cumprir as exigências regulatórias "
+            "previstas, incluindo envio de plano de monitoramento e relatórios de emissões.", s_body))
+
+    story.append(Paragraph(
+        "O inventário de GEE é a primeira etapa do diagnóstico e deve ser continuamente aprimorado. "
+        "Recomenda-se a elaboração de metas de curto, médio e longo prazo para redução e/ou compensação "
+        "das emissões inventariadas, além da expansão do inventário para o Escopo 3 nos próximos ciclos.", s_body))
+
+    # Rodapé final
+    story.append(Spacer(1, 1*cm))
+    story.append(HRFlowable(width=W, thickness=1, color=TEAL, spaceAfter=8))
+    story.append(Paragraph(
+        f"Documento gerado pela plataforma <b>InterMetrics</b> — Interbio Tecnologia Ambiental &amp; InterGreen<br/>"
+        f"Data de geração: {dt.now().strftime('%d/%m/%Y às %H:%M')} | Ano-base: {inv_year}",
+        s_footer))
+
+    # ── BUILD ────────────────────────────────────────────────────────
+    doc.build(story)
+    buf.seek(0)
+
+    filename = f"Inventario_GEE_{company.name.replace(' ','_')}_{inv_year}.pdf"
+    return send_file(buf, as_attachment=True, download_name=filename, mimetype="application/pdf")

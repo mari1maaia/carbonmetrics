@@ -74,6 +74,7 @@
         <div style="display:flex;gap:5px;flex-wrap:wrap;">
           {% if not c.archived %}
           <a href="{{ url_for('company_detail', company_id=c.id) }}" class="btn btn-secondary btn-sm">Abrir</a>
+          <a href="{{ url_for('export_company_pdf', company_id=c.id) }}" class="btn btn-sm" style="background:var(--blue-light);color:var(--blue-text);border:1px solid #B5D4F4;" title="Exportar inventário em PDF">📄 PDF</a>
           <form method="POST" action="{{ url_for('archive_company', company_id=c.id) }}" onsubmit="return confirm('Arquivar {{ c.name }}? Ele sairá dos dashboards mas ficará na plataforma.')">
             <button type="submit" class="btn btn-sm" style="background:var(--yellow-light);color:var(--yellow-text);border:1px solid var(--yellow);">📦 Arquivar</button>
           </form>

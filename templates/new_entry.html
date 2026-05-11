@@ -33,7 +33,7 @@
       </div>
       <div class="form-group">
         <label class="form-label">Categoria *</label>
-        <select class="form-input" name="category" id="category-sel" required>
+        <select class="form-input" name="category" id="category-sel" required onchange="checkFugitive()">
           <option>Combustão estacionária</option>
           <option>Combustão móvel</option>
           <option>Emissões fugitivas</option>
@@ -118,6 +118,29 @@ const cats = {
 function updateCategories(scope){
   const sel = document.getElementById('category-sel');
   sel.innerHTML = cats[scope].map(c => `<option>${c}</option>`).join('');
+  checkFugitive();
+}
+function checkFugitive(){
+  const cat = document.getElementById('category-sel').value;
+  const isFug = cat.toLowerCase().includes('fugit');
+  document.getElementById('fugitive-gas-group').style.display = isFug ? 'flex' : 'none';
+  if(!isFug){
+    document.getElementById('gwp-group').style.display = 'none';
+    document.getElementById('gwp-input').value = '';
+  }
+}
+function applyGas(id){
+  if(!id) return;
+  const opt = document.querySelector('#gas-sel option[value="'+id+'"]');
+  if(!opt) return;
+  const gwp = opt.dataset.gwp;
+  document.getElementById('fuel-input').value = opt.dataset.name;
+  document.getElementById('ef-input').value = gwp;
+  document.getElementById('ef-source-input').value = 'MCTI 2024 / IPCC AR5';
+  document.getElementById('gwp-input').value = gwp;
+  document.getElementById('gwp-group').style.display = 'flex';
+  document.getElementById('unit-input').value = 'kg';
+  calc();
 }
 function applyEF(id){
   if(!id) return;

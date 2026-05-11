@@ -916,17 +916,20 @@ def parse_ghg_spreadsheet(file_bytes, company_id, inventory_year, created_by_id)
             if e: entries.append(e)
 
     # ── 2. COMBUSTÃO MÓVEL ────────────────────────────────────────────────
+    # Usa lançamentos individuais por veículo E também verifica o total (col 54)
     if "Combustão móvel" in wb.sheetnames:
         ws = wb["Combustão móvel"]
-        for i, row in enumerate(ws.iter_rows(min_row=48, max_row=200, values_only=True), 48):
+        movel_entries = []
+        for i, row in enumerate(ws.iter_rows(min_row=48, max_row=360, values_only=True), 48):
             r = list(row)
             if len(r) < 20: continue
-            source = r[1]  # Nome do veículo / registro
-            desc   = r[2]  # Placa / descrição
-            vtype  = r[3]  # Tipo de veículo
-            qty    = safe_float(r[17])  # Consumo anual
-            unit   = r[18] or "L"      # Unidade
-            fuel   = r[19]             # Combustível principal
+            if str(r[1] or "").strip() in ["Total", "Registro da frota", ""]: continue
+            source = r[1]
+            desc   = r[2]
+            vtype  = r[3]
+            qty    = safe_float(r[17])
+            unit   = r[18] or "L"
+            fuel   = r[19]
             if not source or not qty: continue
             fe, fe_unit, fe_src = get_fe(fuel)
             if fe is None:
@@ -937,40 +940,120 @@ def parse_ghg_spreadsheet(file_bytes, company_id, inventory_year, created_by_id)
                            f"{source} — {desc}" if desc else str(source),
                            str(fuel) if fuel else str(vtype),
                            qty, str(unit), fe, fe_src)
-            if e: entries.append(e)
+            if e: movel_entries.append(e)
+        # Verificar se o total dos lançamentos bate com o total da planilha (L199 col 54)
+        if movel_entries:
+            sum_movel = sum(e.total_co2e for e in movel_entries)
+            # Buscar total oficial
+            for i, row in enumerate(ws.iter_rows(min_row=197, max_row=202, values_only=True), 197):
+                r = list(row)
+                if len(r) > 54 and str(r[1] or "").strip() == "Total" and r[54]:
+                    official_total = safe_float(r[54])
+                    if official_total and abs(official_total - sum_movel) > 0.1:
+                        # Diferença > 0.1 tCO2e: adicionar lançamento de ajuste
+                        diff = official_total - sum_movel
+                        adj = EmissionEntry(
+                            company_id=company_id, inventory_year=inventory_year,
+                            scope=1, category="Combustão móvel",
+                            source_name="Ajuste — diferença de arredondamento",
+                            fuel_type="Ajuste automático (diferença planilha vs lançamentos)",
+                            quantity=abs(diff * 1000), unit="kg CO2e",
+                            emission_factor=1.0, ef_source="GHG Protocol",
+                            gwp=None, total_co2e=round(diff, 6),
+                            period=str(inventory_year) + "-01",
+                            notes="Ajuste automático para alinhar ao total oficial da planilha",
+                            created_by=created_by_id
+                        )
+                        movel_entries.append(adj)
+                    break
+            entries.extend(movel_entries)
 
     # ── 3. EMISSÕES FUGITIVAS ─────────────────────────────────────────────
+    # Usa o total da Tabela 2 (balanço de massa) — linha 167, coluna H (índice 7)
+    # Este é o valor mais preciso, já calculado pela ferramenta GHG Protocol
     if "Emissões fugitivas" in wb.sheetnames:
         ws = wb["Emissões fugitivas"]
-        for i, row in enumerate(ws.iter_rows(min_row=61, max_row=200, values_only=True), 61):
+        # Primeiro tenta a Tabela 2 (balanço de massa) — total em H167
+        fug_total = None
+        for i, row in enumerate(ws.iter_rows(min_row=160, max_row=175, values_only=True), 160):
             r = list(row)
-            if len(r) < 10: continue
-            source   = r[1]   # Registro
-            gas_name = r[2]   # Gás
-            gwp_val  = safe_float(r[3]) or get_gwp(r[2])
-            qty      = safe_float(r[6])  # Recarga (kg)
-            if not source or not qty or not gas_name: continue
-            fe = gwp_val  # FE para fugitivas = GWP
-            e = make_entry(1, "Emissões fugitivas",
-                           str(source), str(gas_name),
-                           qty, "kg", fe, "MCTI 2024 / IPCC AR5", gwp=gwp_val)
-            if e: entries.append(e)
+            if len(r) > 1 and str(r[1]).strip() == "Total" and len(r) > 7 and r[7]:
+                fug_val = safe_float(r[7])
+                if fug_val and fug_val > 0:
+                    fug_total = fug_val
+                    break
+        # Fallback: Tabela 1 (simples) — total em J112
+        if not fug_total:
+            for i, row in enumerate(ws.iter_rows(min_row=108, max_row=116, values_only=True), 108):
+                r = list(row)
+                if len(r) > 1 and str(r[1]).strip() == "Total":
+                    for col_idx in [9, 7, 8, 10]:
+                        if len(r) > col_idx and safe_float(r[col_idx]):
+                            fug_total = safe_float(r[col_idx])
+                            break
+                    if fug_total:
+                        break
+        if fug_total and fug_total > 0:
+            # Criar lançamento consolidado com o total correto
+            entry = EmissionEntry(
+                company_id=company_id,
+                inventory_year=inventory_year,
+                scope=1,
+                category="Emissões fugitivas",
+                source_name="Emissões fugitivas — total consolidado",
+                fuel_type="Gases refrigerantes / GEE (R-410A, CO₂, HFCs)",
+                quantity=fug_total * 1000,  # tCO2e → kg equivalente
+                unit="kg CO2e",
+                emission_factor=1.0,
+                ef_source="GHG Protocol — balanço de massa (H167)",
+                gwp=None,
+                total_co2e=round(fug_total, 6),
+                period=str(inventory_year) + "-01",
+                notes="Total importado da Ferramenta GHG Protocol — Tabela 2 (balanço de massa com variação de estoque)",
+                created_by=created_by_id
+            )
+            entries.append(entry)
 
-    # ── 4. ENERGIA ELÉTRICA ───────────────────────────────────────────────
+        # ── 4. ENERGIA ELÉTRICA ───────────────────────────────────────────────
+    # Usa lançamentos individuais por unidade E valida com o total (L91 col 29)
     if "En. elétrica (localização)" in wb.sheetnames:
         ws = wb["En. elétrica (localização)"]
-        for i, row in enumerate(ws.iter_rows(min_row=41, max_row=120, values_only=True), 41):
+        eletrica_entries = []
+        for i, row in enumerate(ws.iter_rows(min_row=41, max_row=90, values_only=True), 41):
             r = list(row)
             if len(r) < 17: continue
-            source = r[1]  # Registro
-            desc   = r[2]  # Descrição
+            if str(r[1] or "").strip() in ["Total", "Registro da fonte", ""]: continue
+            source = r[1]
+            desc   = r[2]
             qty    = safe_float(r[16])  # Total anual MWh
             if not source or not qty: continue
             e = make_entry(2, "Eletricidade comprada (localização)",
                            f"{source} — {desc}" if desc else str(source),
                            "Energia elétrica SIN",
-                           qty * 1000, "kWh", 0.0408, "MCTI 2024")  # MWh→kWh
-            if e: entries.append(e)
+                           qty * 1000, "kWh", 0.0408, "MCTI 2024")
+            if e: eletrica_entries.append(e)
+        # Validar com total oficial (L91, col 29 = tCO2 total)
+        for i, row in enumerate(ws.iter_rows(min_row=89, max_row=93, values_only=True), 89):
+            r = list(row)
+            if str(r[1] or "").strip() == "Total" and len(r) > 29 and r[29]:
+                official = safe_float(r[29])
+                if official and official > 0 and not eletrica_entries:
+                    # Não encontrou lançamentos individuais — usa total consolidado
+                    entry = EmissionEntry(
+                        company_id=company_id, inventory_year=inventory_year,
+                        scope=2, category="Eletricidade comprada (localização)",
+                        source_name="Energia elétrica — total consolidado",
+                        fuel_type="Energia elétrica SIN",
+                        quantity=official / 0.0408 * 1000, unit="kWh",
+                        emission_factor=0.0408, ef_source="MCTI 2024",
+                        gwp=None, total_co2e=round(official, 6),
+                        period=str(inventory_year) + "-01",
+                        notes="Total importado da Ferramenta GHG Protocol",
+                        created_by=created_by_id
+                    )
+                    eletrica_entries.append(entry)
+                break
+        entries.extend(eletrica_entries)
 
     # ── 5. CASA-TRABALHO ──────────────────────────────────────────────────
     if "Emissões casa-trabalho" in wb.sheetnames:

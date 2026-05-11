@@ -156,17 +156,75 @@ FUGITIVE_GASES = [
 ]
 
 EMISSION_FACTORS = [
-    {"id":1,"name":"Gás natural","scope":1,"category":"Combustão estacionária","fe":2.02,"unit":"m³","source":"MCTI 2024","gwp":None},
-    {"id":2,"name":"Diesel","scope":1,"category":"Combustão móvel","fe":2.68,"unit":"L","source":"MCTI 2024","gwp":None},
-    {"id":3,"name":"Gasolina","scope":1,"category":"Combustão móvel","fe":2.27,"unit":"L","source":"MCTI 2024","gwp":None},
-    {"id":4,"name":"GLP","scope":1,"category":"Combustão estacionária","fe":3.01,"unit":"kg","source":"MCTI 2024","gwp":None},
-    {"id":5,"name":"Etanol hidratado","scope":1,"category":"Combustão móvel","fe":1.46,"unit":"L","source":"MCTI 2024","gwp":None},
-    {"id":6,"name":"Carvão mineral","scope":1,"category":"Combustão estacionária","fe":2.54,"unit":"kg","source":"SEEG v12","gwp":None},
-    {"id":9,"name":"Energia elétrica SIN","scope":2,"category":"Eletricidade comprada (localização)","fe":0.0408,"unit":"kWh","source":"MCTI 2024","gwp":None},
-    {"id":10,"name":"Transporte rodoviário (carga)","scope":3,"category":"Cat. 4 — Transporte upstream","fe":0.089,"unit":"t·km","source":"SEEG v12","gwp":None},
-    {"id":11,"name":"Viagem aérea nacional","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":0.158,"unit":"pkm","source":"IPCC AR6","gwp":None},
-    {"id":12,"name":"Resíduos sólidos (aterro)","scope":3,"category":"Cat. 5 — Resíduos","fe":0.52,"unit":"kg","source":"MCTI 2024","gwp":None},
+    # ── ESCOPO 1 · COMBUSTÃO ESTACIONÁRIA ─────────────────────────────────────
+    {"id":1,  "name":"Gás natural",              "scope":1,"category":"Combustão estacionária","fe":2.02,  "unit":"m³",  "source":"MCTI 2024","gwp":None},
+    {"id":4,  "name":"GLP",                      "scope":1,"category":"Combustão estacionária","fe":3.01,  "unit":"kg",  "source":"MCTI 2024","gwp":None},
+    {"id":6,  "name":"Carvão mineral",            "scope":1,"category":"Combustão estacionária","fe":2.54,  "unit":"kg",  "source":"SEEG v12", "gwp":None},
+    {"id":13, "name":"Óleo combustível (BPF)",    "scope":1,"category":"Combustão estacionária","fe":3.11,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    {"id":14, "name":"Querosene iluminante",      "scope":1,"category":"Combustão estacionária","fe":2.52,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    {"id":15, "name":"Lenha / biomassa",          "scope":1,"category":"Combustão estacionária","fe":0.0,   "unit":"kg",  "source":"MCTI 2024","gwp":None},
+    {"id":16, "name":"Bagaço de cana",            "scope":1,"category":"Combustão estacionária","fe":0.0,   "unit":"kg",  "source":"MCTI 2024","gwp":None},
+    {"id":17, "name":"Coque de petróleo",         "scope":1,"category":"Combustão estacionária","fe":3.36,  "unit":"kg",  "source":"MCTI 2024","gwp":None},
+    {"id":18, "name":"Óleo diesel (industrial)",  "scope":1,"category":"Combustão estacionária","fe":2.68,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    # ── ESCOPO 1 · COMBUSTÃO MÓVEL ────────────────────────────────────────────
+    {"id":2,  "name":"Diesel (veículos)",         "scope":1,"category":"Combustão móvel","fe":2.68,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    {"id":3,  "name":"Gasolina (veículos)",       "scope":1,"category":"Combustão móvel","fe":2.27,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    {"id":5,  "name":"Etanol hidratado",          "scope":1,"category":"Combustão móvel","fe":1.46,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    {"id":19, "name":"Etanol anidro",             "scope":1,"category":"Combustão móvel","fe":1.46,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    {"id":20, "name":"GNV (gás natural veicular)","scope":1,"category":"Combustão móvel","fe":2.02,  "unit":"m³",  "source":"MCTI 2024","gwp":None},
+    {"id":21, "name":"Querosene de aviação (QAV)","scope":1,"category":"Combustão móvel","fe":2.52,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    {"id":22, "name":"Gasolina de aviação",       "scope":1,"category":"Combustão móvel","fe":2.27,  "unit":"L",   "source":"MCTI 2024","gwp":None},
+    {"id":23, "name":"Biodiesel B100",            "scope":1,"category":"Combustão móvel","fe":0.0,   "unit":"L",   "source":"MCTI 2024","gwp":None},
+    # ── ESCOPO 1 · EMISSÕES FUGITIVAS (via seletor de gases) ──────────────────
+    {"id":30, "name":"(selecione o gás abaixo)","scope":1,"category":"Emissões fugitivas","fe":0.0,"unit":"kg","source":"MCTI 2024 / IPCC AR5","gwp":None},
+    # ── ESCOPO 1 · PROCESSO INDUSTRIAL ────────────────────────────────────────
+    {"id":40, "name":"Calcário (CaCO₃)",         "scope":1,"category":"Processo industrial","fe":0.44,  "unit":"kg",  "source":"IPCC AR6", "gwp":None},
+    {"id":41, "name":"Dolomita",                 "scope":1,"category":"Processo industrial","fe":0.47,  "unit":"kg",  "source":"IPCC AR6", "gwp":None},
+    {"id":42, "name":"Soda cáustica",            "scope":1,"category":"Processo industrial","fe":0.57,  "unit":"kg",  "source":"IPCC AR6", "gwp":None},
+    # ── ESCOPO 2 · ENERGIA ELÉTRICA ───────────────────────────────────────────
+    {"id":9,  "name":"Energia elétrica SIN (localização)","scope":2,"category":"Eletricidade comprada (localização)","fe":0.0408,"unit":"kWh","source":"MCTI 2024","gwp":None},
+    {"id":50, "name":"Energia elétrica SIN (mercado / REC)","scope":2,"category":"Eletricidade comprada (mercado)","fe":0.0,"unit":"kWh","source":"MCTI 2024","gwp":None},
+    {"id":51, "name":"Energia elétrica — geração própria (solar/eólica)","scope":2,"category":"Eletricidade comprada (localização)","fe":0.0,"unit":"kWh","source":"MCTI 2024","gwp":None},
+    {"id":52, "name":"Vapor comprado",           "scope":2,"category":"Calor/vapor comprado","fe":0.27,  "unit":"GJ",  "source":"IPCC AR6", "gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 1 — BENS E SERVIÇOS COMPRADOS ───────────────────
+    {"id":60, "name":"Compras gerais (spend-based)","scope":3,"category":"Cat. 1 — Bens e serviços comprados","fe":0.31,"unit":"R$1000","source":"SEEG v12","gwp":None},
+    {"id":61, "name":"Insumos industriais",      "scope":3,"category":"Cat. 1 — Bens e serviços comprados","fe":0.45,"unit":"kg","source":"SEEG v12","gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 2 — BENS DE CAPITAL ─────────────────────────────
+    {"id":62, "name":"Bens de capital (spend-based)","scope":3,"category":"Cat. 2 — Bens de capital","fe":0.31,"unit":"R$1000","source":"SEEG v12","gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 3 — ATIVIDADES DE ENERGIA ───────────────────────
+    {"id":63, "name":"Perdas na transmissão elétrica","scope":3,"category":"Cat. 3 — Atividades de energia","fe":0.0071,"unit":"kWh","source":"MCTI 2024","gwp":None},
+    {"id":64, "name":"Extração e transporte de gás natural","scope":3,"category":"Cat. 3 — Atividades de energia","fe":0.34,"unit":"m³","source":"IPCC AR6","gwp":None},
+    {"id":65, "name":"Extração e refino de diesel","scope":3,"category":"Cat. 3 — Atividades de energia","fe":0.63,"unit":"L","source":"IPCC AR6","gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 4 — TRANSPORTE UPSTREAM ─────────────────────────
+    {"id":10, "name":"Transporte rodoviário de carga","scope":3,"category":"Cat. 4 — Transporte upstream","fe":0.089,"unit":"t·km","source":"SEEG v12","gwp":None},
+    {"id":70, "name":"Transporte ferroviário de carga","scope":3,"category":"Cat. 4 — Transporte upstream","fe":0.028,"unit":"t·km","source":"IPCC AR6","gwp":None},
+    {"id":71, "name":"Transporte marítimo de carga","scope":3,"category":"Cat. 4 — Transporte upstream","fe":0.011,"unit":"t·km","source":"IPCC AR6","gwp":None},
+    {"id":72, "name":"Transporte aéreo de carga","scope":3,"category":"Cat. 4 — Transporte upstream","fe":1.13, "unit":"t·km","source":"IPCC AR6","gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 5 — RESÍDUOS ────────────────────────────────────
+    {"id":12, "name":"Resíduos sólidos — aterro sanitário","scope":3,"category":"Cat. 5 — Resíduos gerados","fe":0.52, "unit":"kg","source":"MCTI 2024","gwp":None},
+    {"id":80, "name":"Resíduos sólidos — incineração","scope":3,"category":"Cat. 5 — Resíduos gerados","fe":2.09, "unit":"kg","source":"MCTI 2024","gwp":None},
+    {"id":81, "name":"Resíduos sólidos — compostagem","scope":3,"category":"Cat. 5 — Resíduos gerados","fe":0.015,"unit":"kg","source":"IPCC AR6","gwp":None},
+    {"id":82, "name":"Efluentes líquidos (tratamento anaeróbio)","scope":3,"category":"Cat. 5 — Resíduos gerados","fe":0.48, "unit":"m³","source":"MCTI 2024","gwp":None},
+    {"id":83, "name":"Efluentes líquidos (tratamento aeróbio)","scope":3,"category":"Cat. 5 — Resíduos gerados","fe":0.12, "unit":"m³","source":"MCTI 2024","gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 6 — VIAGENS A NEGÓCIOS ──────────────────────────
+    {"id":11, "name":"Voo doméstico (econômica)","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":0.158,"unit":"pkm","source":"IPCC AR6","gwp":None},
+    {"id":90, "name":"Voo internacional (econômica)","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":0.195,"unit":"pkm","source":"IPCC AR6","gwp":None},
+    {"id":91, "name":"Voo internacional (executiva)","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":0.429,"unit":"pkm","source":"IPCC AR6","gwp":None},
+    {"id":92, "name":"Carro alugado — gasolina","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":0.171,"unit":"km", "source":"IPCC AR6","gwp":None},
+    {"id":93, "name":"Ônibus interestadual","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":0.089,"unit":"pkm","source":"SEEG v12","gwp":None},
+    {"id":94, "name":"Hospedagem (hotel, por noite)","scope":3,"category":"Cat. 6 — Viagens a negócios","fe":31.0, "unit":"un","source":"IPCC AR6","gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 7 — DESLOCAMENTO DE FUNCIONÁRIOS ────────────────
+    {"id":100,"name":"Carro próprio — gasolina (casa-trabalho)","scope":3,"category":"Cat. 7 — Deslocamento de funcionários","fe":0.171,"unit":"km","source":"IPCC AR6","gwp":None},
+    {"id":101,"name":"Carro próprio — etanol (casa-trabalho)","scope":3,"category":"Cat. 7 — Deslocamento de funcionários","fe":0.055,"unit":"km","source":"MCTI 2024","gwp":None},
+    {"id":102,"name":"Ônibus urbano (casa-trabalho)","scope":3,"category":"Cat. 7 — Deslocamento de funcionários","fe":0.089,"unit":"pkm","source":"SEEG v12","gwp":None},
+    {"id":103,"name":"Metrô / trem urbano (casa-trabalho)","scope":3,"category":"Cat. 7 — Deslocamento de funcionários","fe":0.041,"unit":"pkm","source":"SEEG v12","gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 11 — USO DE PRODUTOS VENDIDOS ───────────────────
+    {"id":110,"name":"Uso de produtos vendidos (spend-based)","scope":3,"category":"Cat. 11 — Uso de produtos vendidos","fe":0.31,"unit":"R$1000","source":"SEEG v12","gwp":None},
+    # ── ESCOPO 3 · CATEGORIA 12 — FIM DE VIDA ────────────────────────────────
+    {"id":120,"name":"Fim de vida — aterro","scope":3,"category":"Cat. 12 — Fim de vida dos produtos","fe":0.52,"unit":"kg","source":"MCTI 2024","gwp":None},
+    {"id":121,"name":"Fim de vida — reciclagem","scope":3,"category":"Cat. 12 — Fim de vida dos produtos","fe":0.02,"unit":"kg","source":"IPCC AR6","gwp":None},
 ]
+
 
 CURRENT_YEARS = list(range(date.today().year, 2014, -1))
 

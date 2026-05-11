@@ -6,7 +6,7 @@
   <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-sm">← Voltar</a>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start;">
+<div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
 <div class="card">
   <form method="POST" id="entry-form">
     <div class="form-grid">
@@ -20,12 +20,13 @@
         <label class="form-label">Cliente *</label>
         <select class="form-input" name="company_id" required>
           <option value="">Selecione o cliente...</option>
-          {% for c in companies %}<option value="{{ c.id }}" {% if request.args.get('company')|int == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+          {% for c in companies %}<option value="{{ c.id }}" {% if presel == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Escopo *</label>
-        <select class="form-input" name="scope" required onchange="updateCategories(this.value)">
+        <select class="form-input" name="scope" id="scope-sel" required onchange="updateCategories(this.value)">
+          <option value="">Selecione...</option>
           <option value="1">Escopo 1 — Emissões diretas</option>
           <option value="2">Escopo 2 — Energia elétrica</option>
           <option value="3">Escopo 3 — Cadeia de valor</option>
@@ -34,49 +35,155 @@
       <div class="form-group">
         <label class="form-label">Categoria *</label>
         <select class="form-input" name="category" id="category-sel" required onchange="checkFugitive()">
-          <option>Combustão estacionária</option>
-          <option>Combustão móvel</option>
-          <option>Emissões fugitivas</option>
-          <option>Processo industrial</option>
+          <option value="">Selecione o escopo primeiro</option>
         </select>
       </div>
       <div class="form-group" style="grid-column:1/-1;">
         <label class="form-label">Nome da fonte *</label>
-        <input class="form-input" type="text" name="source_name" required placeholder="Ex: Caldeira A, Frota veicular, Ar-cond. central">
+        <input class="form-input" type="text" name="source_name" required placeholder="Ex: Caldeira A, Frota veicular, Sede SP">
       </div>
-      <div class="form-group">
-        <label class="form-label">Fator de emissão (tabela oficial)</label>
-        <select class="form-input" onchange="applyEF(this.value)">
-          <option value="">— Selecionar da base —</option>
-          {% for ef in emission_factors %}
-          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">
-            E{{ ef.scope }} · {{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }} ({{ ef.source }})
-          </option>
+    </div>
+
+    <!-- SELETOR DE FE OFICIAL -->
+    <div class="form-group">
+      <label class="form-label">Selecionar da base oficial de FEs</label>
+      <select class="form-input" id="ef-sel" onchange="applyEF(this.value)">
+        <option value="">— Selecione para preencher automaticamente —</option>
+        <optgroup label="── Escopo 1 · Combustão estacionária ──">
+          {% for ef in emission_factors if ef.scope==1 and ef.category=='Combustão estacionária' %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
           {% endfor %}
-        </select>
-        <div class="form-hint">Selecionar preenche os campos abaixo automaticamente.</div>
-      </div>
+        </optgroup>
+        <optgroup label="── Escopo 1 · Combustão móvel ──">
+          {% for ef in emission_factors if ef.scope==1 and ef.category=='Combustão móvel' %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 1 · Processo industrial ──">
+          {% for ef in emission_factors if ef.scope==1 and ef.category=='Processo industrial' %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 2 · Energia elétrica ──">
+          {% for ef in emission_factors if ef.scope==2 %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 1 Bens e serviços ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 1' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 2 Bens de capital ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 2' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 3 Atividades de energia ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 3' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 4 Transporte upstream ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 4' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 5 Resíduos ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 5' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 6 Viagens a negócios ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 6' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 7 Deslocamento funcionários ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 7' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 11 Uso de produtos ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 11' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="── Escopo 3 · Cat. 12 Fim de vida ──">
+          {% for ef in emission_factors if ef.scope==3 and 'Cat. 12' in ef.category %}
+          <option value="{{ ef.id }}" data-fe="{{ ef.fe }}" data-unit="{{ ef.unit }}" data-fuel="{{ ef.name }}" data-source="{{ ef.source }}">{{ ef.name }} — {{ ef.fe }} kgCO₂e/{{ ef.unit }}</option>
+          {% endfor %}
+        </optgroup>
+      </select>
+      <div class="form-hint">Ao selecionar, preenche os campos abaixo automaticamente.</div>
+    </div>
+
+    <!-- SELETOR DE GASES FUGITIVOS -->
+    <div class="form-group" id="fugitive-gas-group" style="display:none;">
+      <label class="form-label">🧪 Gás fugitivo — MCTI 2024 / IPCC AR5</label>
+      <select class="form-input" id="gas-sel" onchange="applyGas(this.value)">
+        <option value="">— Selecione o gás —</option>
+        <optgroup label="Gases diretos">
+          {% for g in fugitive_gases if g.familia == '-' %}
+          <option value="{{ g.id }}" data-gwp="{{ g.gwp }}" data-name="{{ g.name }}">{{ g.name }} — GWP: {{ g.gwp }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="HFCs">
+          {% for g in fugitive_gases if g.familia == 'HFC' %}
+          <option value="{{ g.id }}" data-gwp="{{ g.gwp }}" data-name="{{ g.name }}">{{ g.name }} — GWP: {{ g.gwp }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="HCFCs (refrigerantes)">
+          {% for g in fugitive_gases if g.familia == 'HCFC' %}
+          <option value="{{ g.id }}" data-gwp="{{ g.gwp }}" data-name="{{ g.name }}">{{ g.name }} — GWP: {{ g.gwp }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="PFCs">
+          {% for g in fugitive_gases if g.familia == 'PFC' %}
+          <option value="{{ g.id }}" data-gwp="{{ g.gwp }}" data-name="{{ g.name }}">{{ g.name }} — GWP: {{ g.gwp }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="Misturas de refrigerantes">
+          {% for g in fugitive_gases if g.familia not in ['-','HFC','HCFC','PFC'] %}
+          <option value="{{ g.id }}" data-gwp="{{ g.gwp }}" data-name="{{ g.name }}">{{ g.name }} — GWP: {{ g.gwp }}</option>
+          {% endfor %}
+        </optgroup>
+      </select>
+      <div class="form-hint">Selecione o gás para preencher o GWP automaticamente. Cálculo: quantidade (kg) × GWP ÷ 1000 = tCO₂e.</div>
+    </div>
+
+    <div class="form-grid">
       <div class="form-group">
-        <label class="form-label">Tipo de combustível / insumo</label>
-        <input class="form-input" type="text" name="fuel_type" id="fuel-input" placeholder="Ex: Gás natural, Diesel">
+        <label class="form-label">Tipo de combustível / insumo *</label>
+        <input class="form-input" type="text" name="fuel_type" id="fuel-input" required placeholder="Ex: Gás natural, Diesel">
       </div>
       <div class="form-group">
         <label class="form-label">Quantidade consumida *</label>
         <input class="form-input" type="number" step="any" name="quantity" id="qty-input" required placeholder="0" oninput="calc()">
       </div>
       <div class="form-group">
-        <label class="form-label">Unidade</label>
+        <label class="form-label">Unidade *</label>
         <select class="form-input" name="unit" id="unit-input" onchange="calc()">
-          <option>m³</option><option>L</option><option>kg</option><option>MWh</option><option>kWh</option><option>t·km</option><option>pkm</option>
+          <option value="m³">m³</option><option value="L">L</option><option value="kg">kg</option>
+          <option value="kWh">kWh</option><option value="MWh">MWh</option><option value="GJ">GJ</option>
+          <option value="t·km">t·km</option><option value="pkm">pkm</option><option value="km">km</option>
+          <option value="t">t</option><option value="R$1000">R$1000</option><option value="un">un</option>
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Fator de emissão (kgCO₂e/unid.) *</label>
         <input class="form-input" type="number" step="any" name="emission_factor" id="ef-input" required placeholder="0.000" oninput="calc()">
       </div>
+      <div class="form-group" id="gwp-group" style="display:none;">
+        <label class="form-label">GWP (Potencial de Aquecimento Global)</label>
+        <input class="form-input" type="number" name="gwp" id="gwp-input" readonly style="background:var(--bg);">
+        <div class="form-hint">Preenchido automaticamente pelo gás selecionado.</div>
+      </div>
       <div class="form-group">
         <label class="form-label">Fonte do FE</label>
-        <input class="form-input" type="text" name="ef_source" id="ef-source-input" placeholder="MCTI 2024" value="MCTI 2024">
+        <select class="form-input" name="ef_source" id="ef-source-input">
+          <option>MCTI 2024</option><option>MCTI 2024 / IPCC AR5</option><option>IPCC AR6</option><option>SEEG v12</option><option>Personalizado</option>
+        </select>
       </div>
       <div class="form-group">
         <label class="form-label">Período de referência</label>
@@ -95,39 +202,52 @@
 </div>
 
 <div>
-  <div class="card" style="text-align:center;">
-    <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Resultado calculado</div>
-    <div style="font-size:36px;font-weight:700;color:var(--green);" id="result-value">—</div>
-    <div style="font-size:13px;color:var(--text2);">tCO₂e</div>
-    <div style="font-size:11px;color:var(--text3);margin-top:8px;" id="result-formula">Qtd × FE ÷ 1000</div>
+  <div class="card" style="text-align:center;border-top:4px solid var(--green);position:sticky;top:72px;">
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Resultado calculado</div>
+    <div style="font-size:40px;font-weight:700;color:var(--green);" id="result-value">—</div>
+    <div style="font-size:14px;color:var(--text2);font-weight:500;">tCO₂e</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);" id="result-formula">Qtd × FE ÷ 1000</div>
   </div>
   <div class="card" style="font-size:12px;color:var(--text2);line-height:1.8;">
     <div style="font-weight:600;margin-bottom:8px;font-size:13px;">Como calcular</div>
     <div><strong>tCO₂e</strong> = (Quantidade × FE) ÷ 1000</div>
-    <div style="margin-top:8px;color:var(--text3);">Onde FE é o fator de emissão em kgCO₂e por unidade de atividade.</div>
+    <div style="margin-top:6px;color:var(--text3);font-size:11px;">Para gases fugitivos:<br>FE = GWP do gás<br>Unidade = kg do gás</div>
   </div>
 </div>
 </div>
 
 <script>
 const cats = {
-  '1': ['Combustão estacionária','Combustão móvel','Emissões fugitivas','Processo industrial'],
-  '2': ['Eletricidade comprada (localização)','Eletricidade comprada (mercado)'],
-  '3': ['Cat. 1 — Bens e serviços comprados','Cat. 3 — Atividades de energia','Cat. 4 — Transporte upstream','Cat. 5 — Resíduos','Cat. 6 — Viagens a negócios','Cat. 7 — Deslocamento de funcionários','Cat. 11 — Uso de produtos vendidos']
+  '1':['Combustão estacionária','Combustão móvel','Emissões fugitivas','Processo industrial'],
+  '2':['Eletricidade comprada (localização)','Eletricidade comprada (mercado)','Calor/vapor comprado'],
+  '3':['Cat. 1 — Bens e serviços comprados','Cat. 2 — Bens de capital','Cat. 3 — Atividades de energia',
+       'Cat. 4 — Transporte upstream','Cat. 5 — Resíduos gerados','Cat. 6 — Viagens a negócios',
+       'Cat. 7 — Deslocamento de funcionários','Cat. 11 — Uso de produtos vendidos','Cat. 12 — Fim de vida dos produtos']
 };
 function updateCategories(scope){
   const sel = document.getElementById('category-sel');
-  sel.innerHTML = cats[scope].map(c => `<option>${c}</option>`).join('');
+  sel.innerHTML = (cats[scope]||[]).map(c=>`<option>${c}</option>`).join('');
   checkFugitive();
 }
 function checkFugitive(){
   const cat = document.getElementById('category-sel').value;
   const isFug = cat.toLowerCase().includes('fugit');
-  document.getElementById('fugitive-gas-group').style.display = isFug ? 'flex' : 'none';
+  document.getElementById('fugitive-gas-group').style.display = isFug ? 'block' : 'none';
   if(!isFug){
     document.getElementById('gwp-group').style.display = 'none';
     document.getElementById('gwp-input').value = '';
+    document.getElementById('gas-sel').value = '';
   }
+}
+function applyEF(id){
+  if(!id) return;
+  const opt = document.querySelector('#ef-sel option[value="'+id+'"]');
+  if(!opt) return;
+  document.getElementById('ef-input').value = opt.dataset.fe;
+  document.getElementById('unit-input').value = opt.dataset.unit;
+  document.getElementById('fuel-input').value = opt.dataset.fuel;
+  document.getElementById('ef-source-input').value = opt.dataset.source;
+  calc();
 }
 function applyGas(id){
   if(!id) return;
@@ -142,22 +262,12 @@ function applyGas(id){
   document.getElementById('unit-input').value = 'kg';
   calc();
 }
-function applyEF(id){
-  if(!id) return;
-  const opt = document.querySelector(`select[onchange="applyEF(this.value)"] option[value="${id}"]`);
-  if(!opt) return;
-  document.getElementById('ef-input').value = opt.dataset.fe;
-  document.getElementById('unit-input').value = opt.dataset.unit;
-  document.getElementById('fuel-input').value = opt.dataset.fuel;
-  document.getElementById('ef-source-input').value = opt.dataset.source;
-  calc();
-}
 function calc(){
-  const qty = parseFloat(document.getElementById('qty-input').value) || 0;
-  const ef = parseFloat(document.getElementById('ef-input').value) || 0;
-  const result = qty * ef / 1000;
-  document.getElementById('result-value').textContent = result > 0 ? result.toFixed(4) : '—';
-  document.getElementById('result-formula').textContent = result > 0 ? `${qty} × ${ef} ÷ 1000 = ${result.toFixed(4)} tCO₂e` : 'Qtd × FE ÷ 1000';
+  const qty = parseFloat(document.getElementById('qty-input').value)||0;
+  const ef  = parseFloat(document.getElementById('ef-input').value)||0;
+  const res = qty*ef/1000;
+  document.getElementById('result-value').textContent = res>0 ? res.toFixed(4) : '—';
+  document.getElementById('result-formula').textContent = res>0 ? qty+' × '+ef+' ÷ 1000 = '+res.toFixed(4)+' tCO₂e' : 'Qtd × FE ÷ 1000';
 }
 </script>
 {% endblock %}

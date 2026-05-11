@@ -1311,20 +1311,29 @@ def export_company_pdf(company_id):
         d.add(String(12, 3, text, fontSize=11, fillColor=WHITE, fontName="Helvetica-Bold"))
         return d
 
-    def teal_table(data, col_widths, header_rows=1):
-        t = Table(data, colWidths=col_widths)
-        style = [
-            ("BACKGROUND", (0,0), (-1, header_rows-1), TEAL),
-            ("TEXTCOLOR",  (0,0), (-1, header_rows-1), WHITE),
-            ("FONTNAME",   (0,0), (-1, header_rows-1), "Helvetica-Bold"),
+    BASE_TABLE_STYLE = [
+            ("BACKGROUND", (0,0), (-1, 0), TEAL),
+            ("TEXTCOLOR",  (0,0), (-1, 0), WHITE),
+            ("FONTNAME",   (0,0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE",   (0,0), (-1,-1), 9),
             ("ALIGN",      (0,0), (-1,-1), "CENTER"),
             ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
-            ("ROWBACKGROUNDS", (0, header_rows), (-1,-1), [WHITE, LIGHT_GRAY]),
+            ("ROWBACKGROUNDS", (0, 1), (-1,-1), [WHITE, LIGHT_GRAY]),
             ("GRID",       (0,0), (-1,-1), 0.4, colors.HexColor("#cccccc")),
             ("TOPPADDING", (0,0), (-1,-1), 5),
             ("BOTTOMPADDING", (0,0), (-1,-1), 5),
         ]
+
+    def teal_table(data, col_widths, header_rows=1, extra_style=None):
+        t = Table(data, colWidths=col_widths)
+        style = list(BASE_TABLE_STYLE)
+        if header_rows > 1:
+            style[0] = ("BACKGROUND", (0,0), (-1, header_rows-1), TEAL)
+            style[1] = ("TEXTCOLOR",  (0,0), (-1, header_rows-1), WHITE)
+            style[2] = ("FONTNAME",   (0,0), (-1, header_rows-1), "Helvetica-Bold")
+            style[6] = ("ROWBACKGROUNDS", (0, header_rows), (-1,-1), [WHITE, LIGHT_GRAY])
+        if extra_style:
+            style.extend(extra_style)
         t.setStyle(TableStyle(style))
         return t
 
@@ -1505,12 +1514,10 @@ def export_company_pdf(company_id):
         exec_rows.append(["Escopo 3", "Cadeia de valor", f"{e3_total:.2f}"])
     exec_rows.append(["", "TOTAL", f"{grand_total:.2f}"])
 
-    t_exec = teal_table(exec_rows, [4*cm, 8*cm, 4*cm])
-    t_exec.setStyle(TableStyle([
-        *t_exec._tblStyle._cmds,
-        ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
+    t_exec = teal_table(exec_rows, [4*cm, 8*cm, 4*cm], extra_style=[
+        ("FONTNAME",   (0,-1), (-1,-1), "Helvetica-Bold"),
         ("BACKGROUND", (0,-1), (-1,-1), colors.HexColor("#e8f4f0")),
-    ]))
+    ])
     story.append(t_exec)
     story.append(Paragraph("Tabela 1: Resumo dos escopos e emissões inventariadas.", s_caption))
 
@@ -1648,12 +1655,10 @@ def export_company_pdf(company_id):
         full_rows.append([f"Escopo {sc}", cat or "—", f"{total:.2f}", f"{pct:.1f}%"])
     full_rows.append(["", "TOTAL", f"{grand_total:.2f}", "100%"])
 
-    t_full = teal_table(full_rows, [3*cm, 7*cm, 3.5*cm, 2.5*cm])
-    t_full.setStyle(TableStyle([
-        *t_full._tblStyle._cmds,
-        ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
+    t_full = teal_table(full_rows, [3*cm, 7*cm, 3.5*cm, 2.5*cm], extra_style=[
+        ("FONTNAME",   (0,-1), (-1,-1), "Helvetica-Bold"),
         ("BACKGROUND", (0,-1), (-1,-1), colors.HexColor("#e8f4f0")),
-    ]))
+    ])
     story.append(t_full)
     story.append(Paragraph("Tabela 4: Emissões de GEE desagregadas por Escopo, em tCO₂e.", s_caption))
 

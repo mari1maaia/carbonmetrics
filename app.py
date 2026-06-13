@@ -277,7 +277,7 @@ def forgot_password():
         email = request.form.get("email", "").strip().lower()
         user = User.query.filter_by(email=email, active=True).first()
         if not user:
-            flash("E-mail não encontrado. Verifique se está correto ou contate a Interbio.", "error")
+            flash("E-mail não encontrado. Verifique se está correto ou contate a CarbonMetric.", "error")
             return render_template("forgot_password.html")
         # Gerar senha temporária
         chars = string.ascii_letters + string.digits
@@ -287,17 +287,17 @@ def forgot_password():
         # Tentar enviar e-mail
         body = f"""Olá, {user.name}!
 
-Você solicitou a recuperação de acesso ao CarbonMetric - Interbio Tecnologia Ambiental.
+Você solicitou a recuperação de acesso ao CarbonMetric - CarbonMetric.
 
 Sua senha temporária é: {temp_pw}
 
 Acesse o sistema em: http://localhost:5000
 Após entrar, recomendamos alterar sua senha.
 
-Em caso de dúvidas, entre em contato com a Interbio.
+Em caso de dúvidas, entre em contato com a CarbonMetric.
 
 Atenciosamente,
-Equipe Interbio Tecnologia Ambiental"""
+Equipe CarbonMetric"""
         sent = send_email(email, "CarbonMetric — Senha temporária", body)
         log_activity(f"Recuperação de senha solicitada para {email}")
         return render_template("forgot_password.html", success=True, sent=sent, temp_pw=temp_pw if not sent else None)
@@ -1263,7 +1263,7 @@ def export_company_pdf(company_id):
 
     # Responsável técnico (admin logado)
     admin_user = User.query.filter_by(role="admin").first()
-    resp_name = admin_user.name if admin_user else "Interbio Tecnologia Ambiental"
+    resp_name = admin_user.name if admin_user else "CarbonMetric"
     resp_job = admin_user.job_title if (admin_user and admin_user.job_title) else "Responsável Técnico"
 
     # ── CORES E ESTILOS ──────────────────────────────────────────────────
@@ -1305,7 +1305,7 @@ def export_company_pdf(company_id):
                         spaceAfter=4)
 
     def header_bar(text):
-        """Barra colorida estilo Interbio como separador de seção."""
+        """Barra colorida estilo CarbonMetric como separador de seção."""
         d = Drawing(16*cm, 1.2*cm)
         d.add(Rect(0, 0, 16*cm, 1.2*cm, fillColor=TEAL, strokeColor=None))
         d.add(String(12, 3, text, fontSize=11, fillColor=WHITE, fontName="Helvetica-Bold"))
@@ -1343,7 +1343,7 @@ def export_company_pdf(company_id):
         leftMargin=2.5*cm, rightMargin=2.5*cm,
         topMargin=2.5*cm,  bottomMargin=2.5*cm,
         title=f"Inventário GEE {company.name} {inv_year}",
-        author="InterMetrics — Interbio & InterGreen")
+        author="CarbonMetric — CarbonMetric")
 
     story = []
     W = 16 * cm  # largura útil
@@ -1381,7 +1381,7 @@ def export_company_pdf(company_id):
     story.append(Paragraph(f"Elaboração: {resp_name}", s_center))
     story.append(Paragraph(f"{resp_job}", s_center))
     story.append(Spacer(1, 0.5*cm))
-    story.append(Paragraph(f"Interbio Tecnologia Ambiental &amp; InterGreen", sty("capa_empresa",
+    story.append(Paragraph(f"CarbonMetric &amp; ", sty("capa_empresa",
         fontSize=11, textColor=TEAL, fontName="Helvetica-Bold", alignment=TA_CENTER)))
     story.append(Spacer(1, 0.3*cm))
     story.append(Paragraph(f"Gerado em {dt.now().strftime('%d/%m/%Y')}", s_footer))
@@ -1442,8 +1442,8 @@ def export_company_pdf(company_id):
     story.append(Paragraph("1.2 RESPONSÁVEL TÉCNICO PELA ELABORAÇÃO DO PROJETO", s_subsection))
     resp_data = [
         ["NOME DO RESPONSÁVEL TÉCNICO", resp_name],
-        ["EMPRESA RESPONSÁVEL", "Interbio Tecnologia Ambiental"],
-        ["PLATAFORMA", "InterMetrics — Plataforma de Métricas & Processos ESG e Carbono"],
+        ["EMPRESA RESPONSÁVEL", "CarbonMetric"],
+        ["PLATAFORMA", "CarbonMetric — Plataforma de Métricas & Processos ESG e Carbono"],
     ]
     t2 = Table(resp_data, colWidths=[6*cm, 10*cm])
     t2.setStyle(TableStyle([
@@ -1695,7 +1695,7 @@ def export_company_pdf(company_id):
     story.append(Spacer(1, 1*cm))
     story.append(HRFlowable(width=W, thickness=1, color=TEAL, spaceAfter=8))
     story.append(Paragraph(
-        f"Documento gerado pela plataforma <b>InterMetrics</b> — Interbio Tecnologia Ambiental &amp; InterGreen<br/>"
+        f"Documento gerado pela plataforma <b>CarbonMetric</b> — CarbonMetric &amp; <br/>"
         f"Data de geração: {dt.now().strftime('%d/%m/%Y às %H:%M')} | Ano-base: {inv_year}",
         s_footer))
 

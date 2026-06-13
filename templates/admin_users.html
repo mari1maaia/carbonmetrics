@@ -20,7 +20,7 @@
 
 <div class="metrics">
   <div class="metric total"><div class="metric-label">Total</div><div class="metric-value">{{ users|length }}</div><div class="metric-unit">usuários ativos</div></div>
-  <div class="metric s1"><div class="metric-label">Administradores</div><div class="metric-value">{{ users|selectattr('role','eq','admin')|list|length }}</div><div class="metric-unit">Interbio</div></div>
+  <div class="metric s1"><div class="metric-label">Administradores</div><div class="metric-value">{{ users|selectattr('role','eq','admin')|list|length }}</div><div class="metric-unit">CarbonMetric</div></div>
   <div class="metric s2"><div class="metric-label">Clientes</div><div class="metric-value">{{ users|selectattr('role','eq','client')|list|length }}</div><div class="metric-unit">vinculados</div></div>
 </div>
 
@@ -41,7 +41,7 @@
       <td style="font-size:12px;color:var(--text2);">{{ u.email }}</td>
       <td style="font-size:12px;color:var(--text2);">{{ u.job_title or '—' }}</td>
       <td><span class="role-badge {{ 'role-badge-admin' if u.role=='admin' else 'role-badge-client' }}">{{ 'Admin' if u.role=='admin' else 'Cliente' }}</span></td>
-      <td style="font-size:12px;color:var(--text2);">{{ u.company.name if u.company else '— Interbio —' }}</td>
+      <td style="font-size:12px;color:var(--text2);">{{ u.company.name if u.company else '— CarbonMetric —' }}</td>
       <td>
         {% if u.role == 'admin' %}
           <span style="font-size:11px;color:var(--text3);">Todos</span>
@@ -104,7 +104,7 @@
           <label class="form-label">Tipo de acesso *</label>
           <select class="form-input" name="role" id="new-role" onchange="toggleCompany('new')">
             <option value="client">Cliente — acesso ao próprio inventário</option>
-            <option value="admin">Administrador — acesso total (Interbio)</option>
+            <option value="admin">Administrador — acesso total (CarbonMetric)</option>
           </select>
         </div>
         <div class="form-group" id="new-company-group">

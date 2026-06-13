@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}InterMetrics{% endblock %} · Interbio</title>
+  <title>{% block title %}CarbonMetric{% endblock %} · CarbonMetric</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -121,10 +121,10 @@
 
 <div class="topbar">
   <a class="topbar-logo" href="{{ url_for('index') }}">
-    <img src="{{ url_for('static', filename='intermetrics.png') }}" alt="InterMetrics" style="height:40px;object-fit:contain;">
+    <img src="{{ url_for('static', filename='carbonmetric.png') }}" alt="CarbonMetric" style="height:40px;object-fit:contain;">
     <div class="topbar-divider"></div>
     <div>
-      <div class="topbar-appname">InterMetrics</div>
+      <div class="topbar-appname">CarbonMetric</div>
       <div class="topbar-appsub">Inventário GEE · GHG Protocol</div>
     </div>
   </a>
@@ -136,7 +136,7 @@
       </div>
       <div>
         <div class="topbar-name">{{ current_user.name }}</div>
-        <div class="topbar-role">{{ current_user.company.name if current_user.company else 'InterMetrics · Interbio & InterGreen' }}</div>
+        <div class="topbar-role">{{ current_user.company.name if current_user.company else 'CarbonMetric · GHG Protocol' }}</div>
       </div>
     </div>
     <span class="role-badge {{ 'role-badge-admin' if current_user.role == 'admin' else 'role-badge-client' }}">

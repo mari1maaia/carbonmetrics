@@ -4,10 +4,7 @@
 <style>
   .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f0f9f5 0%,#e8f4f0 100%);padding:24px;}
   .auth-card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:16px;padding:36px 36px 28px;width:100%;max-width:420px;box-shadow:0 4px 24px rgba(0,0,0,.08);}
-  .logos-row{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:8px;}
-  .logo-divider{width:1px;height:48px;background:rgba(0,0,0,.12);}
-  .platform-tag{text-align:center;font-size:11px;color:#999;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid rgba(0,0,0,.08);}
-  .auth-title{font-size:20px;font-weight:700;text-align:center;margin-bottom:6px;color:#1a1a18;}
+        .auth-title{font-size:20px;font-weight:700;text-align:center;margin-bottom:6px;color:#1a1a18;}
   .auth-sub{font-size:13px;color:#5a5a57;text-align:center;margin-bottom:24px;}
   .input-wrap{position:relative;}
   .input-wrap .form-input{padding-right:38px;width:100%;}
@@ -24,17 +21,9 @@
     </div>
     {% endif %}{% endwith %}
 
-    <!-- LOGOS DAS DUAS EMPRESAS -->
-    <div class="logos-row">
-      <img src="{{ url_for('static', filename='interbio.jpg') }}" alt="CarbonMetric" style="height:48px;object-fit:contain;">
-      <div class="logo-divider"></div>
-      <img src="{{ url_for('static', filename='intergreen.jpg') }}" alt="" style="height:48px;object-fit:contain;">
-    </div>
-    <div class="platform-tag">Uma plataforma CarbonMetric & </div>
-
-    <!-- LOGO INTERMETRICS -->
-    <div style="text-align:center;margin-bottom:20px;">
-      <img src="{{ url_for('static', filename='carbonmetric.png') }}" alt="CarbonMetric" style="max-height:90px;max-width:300px;object-fit:contain;">
+    <!-- LOGO CARBONMETRIC -->
+    <div style="text-align:center;margin-bottom:24px;">
+      <img src="{{ url_for('static', filename='carbonmetric.png') }}" alt="CarbonMetric" style="max-height:110px;max-width:260px;object-fit:contain;">
     </div>
 
     <div class="auth-title">Bem-vinda de volta</div>

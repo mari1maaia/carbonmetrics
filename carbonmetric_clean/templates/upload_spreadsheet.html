@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Importar planilha GHG Protocol{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Importar Planilha GHG Protocol</div>
+    <div class="page-sub">{{ company.name }} · Importação automática da Ferramenta GHG Protocol</div>
+  </div>
+  <a href="{{ url_for('company_detail', company_id=company.id) if current_user.role == 'admin' else url_for('client_dashboard_full') }}" class="btn btn-secondary btn-sm">← Voltar</a>
+</div>
+
+<!-- Como funciona -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);">
+    <div style="font-size:28px;margin-bottom:8px;">📋</div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">1. Preencha a planilha</div>
+    <div style="font-size:12px;color:var(--text2);">Use a Ferramenta GHG Protocol oficial (.xlsx) com seus dados de atividade</div>
+  </div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);">
+    <div style="font-size:28px;margin-bottom:8px;">⬆️</div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">2. Faça o upload</div>
+    <div style="font-size:12px;color:var(--text2);">Selecione o arquivo e o ano do inventário abaixo</div>
+  </div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);">
+    <div style="font-size:28px;margin-bottom:8px;">✅</div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">3. Pronto!</div>
+    <div style="font-size:12px;color:var(--text2);">Todos os lançamentos são criados automaticamente no inventário</div>
+  </div>
+</div>
+
+<!-- Abas suportadas -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-title">Abas processadas automaticamente</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;">
+    {% for aba, escopo, desc in [
+      ('Combustão estacionária', 'E1', 'Caldeiras, fornos, geradores'),
+      ('Combustão móvel', 'E1', 'Frotas de veículos'),
+      ('Emissões fugitivas', 'E1', 'Gases refrigerantes'),
+      ('En. elétrica (localização)', 'E2', 'Energia elétrica comprada'),
+      ('Emissões casa-trabalho', 'E3', 'Deslocamento de funcionários'),
+    ] %}
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border-radius:8px;">
+      <span class="scope-pill s{{ escopo[1] }}">{{ escopo }}</span>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text);">{{ aba }}</div>
+        <div style="font-size:11px;color:var(--text3);">{{ desc }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div style="margin-top:12px;padding:10px 13px;background:var(--yellow-light);border:1px solid var(--yellow);border-radius:8px;font-size:12px;color:var(--yellow-text);">
+    ⚠️ <strong>Atenção:</strong> A planilha deve ser a <strong>Ferramenta GHG Protocol</strong> em formato .xlsx, com as abas no padrão oficial. Planilhas personalizadas podem não ser lidas corretamente.
+  </div>
+</div>
+
+<!-- Formulário de upload -->
+<div class="card" style="max-width:560px;">
+  <div class="card-title">Upload da planilha</div>
+  <form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+      <label class="form-label">Ano do inventário *</label>
+      <select class="form-input" name="inventory_year" required>
+        {% for y in current_years %}
+        <option value="{{ y }}" {% if y == now_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <div class="form-hint">Os lançamentos serão criados com este ano-base.</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Arquivo .xlsx *</label>
+      <div id="drop-zone" style="border:2px dashed var(--green);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:all .2s;background:var(--green-light);"
+        onclick="document.getElementById('file-input').click()"
+        ondragover="event.preventDefault();this.style.background='#d4f0e8';"
+        ondragleave="this.style.background='var(--green-light)';"
+        ondrop="handleDrop(event)">
+        <div style="font-size:32px;margin-bottom:10px;">📊</div>
+        <div style="font-size:13px;font-weight:500;color:var(--green-text);" id="drop-label">Arraste o arquivo aqui ou clique para selecionar</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">.xlsx · Ferramenta GHG Protocol</div>
+      </div>
+      <input type="file" id="file-input" name="file" accept=".xlsx,.xlsm" style="display:none;" onchange="showFile(this)">
+    </div>
+
+    <div style="background:var(--blue-light);border:1px solid #B5D4F4;border-radius:8px;padding:10px 13px;font-size:12px;color:var(--blue-text);margin-bottom:16px;">
+      💡 Lançamentos existentes <strong>não serão sobrescritos</strong> — a importação apenas adiciona novos. Se importar duas vezes, os dados serão duplicados.
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <a href="{{ url_for('company_detail', company_id=company.id) if current_user.role == 'admin' else url_for('client_dashboard_full') }}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary" id="submit-btn" disabled>⬆️ Importar planilha</button>
+    </div>
+  </form>
+</div>
+
+<script>
+const nowYear = {{ now_year }};
+function showFile(input){
+  if(input.files && input.files[0]){
+    const name = input.files[0].name;
+    document.getElementById('drop-label').textContent = '✅ ' + name;
+    document.getElementById('drop-zone').style.borderColor = 'var(--green-dark)';
+    document.getElementById('submit-btn').disabled = false;
+  }
+}
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('drop-zone').style.background = 'var(--green-light)';
+  const file = e.dataTransfer.files[0];
+  if(file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xlsm'))){
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    document.getElementById('file-input').files = dt.files;
+    showFile(document.getElementById('file-input'));
+  } else {
+    alert('Por favor, envie um arquivo .xlsx');
+  }
+}
+</script>
+{% endblock %}

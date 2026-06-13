@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .chart-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+  .chart-box-full{grid-column:1/-1;}
+  .chart-label{font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;}
+  .chart-sub{font-size:11px;color:var(--text3);margin-bottom:14px;}
+</style>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Dashboard & filtros</div>
+    <div class="page-sub">Emissões consolidadas · CarbonMetric</div>
+  </div>
+  <a href="{{ url_for('admin_new_entry') }}" class="btn btn-primary btn-sm">+ Lançar emissão</a>
+</div>
+
+<!-- FILTROS -->
+<form method="GET" class="filter-bar">
+  <select name="company_id" onchange="this.form.submit()">
+    <option value="">🏢 Todos os clientes</option>
+    {% for c in companies %}
+    <option value="{{ c.id }}" {% if sel_company == c.id %}selected{% endif %}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+  <select name="year" onchange="this.form.submit()">
+    <option value="">📅 Todos os anos</option>
+    {% for y in all_years %}
+    <option value="{{ y }}" {% if sel_year == y %}selected{% endif %}>{{ y }}</option>
+    {% endfor %}
+  </select>
+  <select name="scope" onchange="this.form.submit()">
+    <option value="">🌿 Todos os escopos</option>
+    <option value="1" {% if sel_scope == 1 %}selected{% endif %}>Escopo 1 — Diretas</option>
+    <option value="2" {% if sel_scope == 2 %}selected{% endif %}>Escopo 2 — Energia</option>
+    <option value="3" {% if sel_scope == 3 %}selected{% endif %}>Escopo 3 — Cadeia</option>
+  </select>
+  <select name="category" onchange="this.form.submit()">
+    <option value="">📂 Todas as categorias</option>
+    {% for cat in all_categories %}
+    <option value="{{ cat }}" {% if sel_category == cat %}selected{% endif %}>{{ cat }}</option>
+    {% endfor %}
+  </select>
+  {% if sel_company or sel_scope or sel_category or sel_year %}
+  <a href="{{ url_for('admin_dashboard_full') }}" class="btn btn-secondary btn-sm">✕ Limpar</a>
+  {% endif %}
+</form>
+
+<!-- MÉTRICAS -->
+<div class="metrics">
+  <div class="metric total"><div class="metric-label">Total filtrado</div><div class="metric-value">{{ "%.2f"|format(total) }}</div><div class="metric-unit">tCO₂e</div></div>
+  <div class="metric s1"><div class="metric-label">Escopo 1</div><div class="metric-value">{{ "%.2f"|format(scope_totals[1]) }}</div><div class="metric-unit">tCO₂e · diretas</div></div>
+  <div class="metric s2"><div class="metric-label">Escopo 2</div><div class="metric-value">{{ "%.2f"|format(scope_totals[2]) }}</div><div class="metric-unit">tCO₂e · energia</div></div>
+  <div class="metric s3"><div class="metric-label">Escopo 3</div><div class="metric-value">{{ "%.2f"|format(scope_totals[3]) }}</div><div class="metric-unit">tCO₂e · cadeia</div></div>
+</div>
+
+<!-- GRÁFICOS -->
+{% if total > 0 %}
+<div class="charts-grid">
+  <!-- Pizza: distribuição por escopo -->
+  <div class="chart-box">
+    <div class="chart-label">Distribuição por escopo</div>
+    <div class="chart-sub">Proporção de tCO₂e por escopo</div>
+    <div style="position:relative;height:240px;display:flex;align-items:center;justify-content:center;">
+      <canvas id="chartEscopos"></canvas>
+    </div>
+  </div>
+  <!-- Pizza: distribuição por cliente -->
+  <div class="chart-box">
+    <div class="chart-label">Distribuição por cliente</div>
+    <div class="chart-sub">Proporção de tCO₂e por empresa</div>
+    <div style="position:relative;height:240px;display:flex;align-items:center;justify-content:center;">
+      <canvas id="chartClientes"></canvas>
+    </div>
+  </div>
+  <!-- Barras: por categoria -->
+  <div class="chart-box chart-box-full">
+    <div class="chart-label">Emissões por categoria</div>
+    <div class="chart-sub">tCO₂e por categoria de emissão — ordenado do maior para o menor</div>
+    <div style="position:relative;height:220px;">
+      <canvas id="chartCategorias"></canvas>
+    </div>
+  </div>
+  {% if all_years|length > 1 and not sel_year %}
+  <!-- Linha: evolução por ano -->
+  <div class="chart-box chart-box-full">
+    <div class="chart-label">Evolução anual das emissões</div>
+    <div class="chart-sub">tCO₂e por escopo ao longo dos anos inventariados</div>
+    <div style="position:relative;height:220px;">
+      <canvas id="chartAnual"></canvas>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- BARRAS POR CLIENTE E CATEGORIA -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+  <div class="card">
+    <div class="card-title">Por cliente</div>
+    {% for name, val in company_totals.items()|sort(attribute='1', reverse=True) %}
+    {% set pct = (val / total * 100) if total > 0 else 0 %}
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span style="font-weight:500;">{{ name }}</span>
+        <span style="color:var(--text2);">{{ "%.2f"|format(val) }} tCO₂e</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:{{ pct|round(1) }}%"></div></div>
+    </div>
+    {% else %}<div class="empty-state" style="padding:16px;">Nenhum dado.</div>{% endfor %}
+  </div>
+  <div class="card">
+    <div class="card-title">Por categoria</div>
+    {% for cat, val in category_totals.items()|sort(attribute='1', reverse=True) %}
+    {% set pct = (val / total * 100) if total > 0 else 0 %}
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span style="font-weight:500;">{{ cat }}</span>
+        <span style="color:var(--text2);">{{ "%.2f"|format(val) }} tCO₂e</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:{{ pct|round(1) }}%;background:var(--amber);"></div></div>
+    </div>
+    {% else %}<div class="empty-state" style="padding:16px;">Nenhum dado.</div>{% endfor %}
+  </div>
+</div>
+
+<!-- TABELA -->
+<div class="card">
+  <div class="card-title">Lançamentos ({{ emissions|length }})</div>
+  {% if emissions %}
+  <div style="overflow-x:auto;">
+  <table>
+    <thead><tr><th>Fonte</th><th>Cliente</th><th>Ano</th><th>Escopo</th><th>Categoria</th><th>Qtd</th><th>FE</th><th>tCO₂e</th><th>Período</th></tr></thead>
+    <tbody>
+    {% for e in emissions %}
+    <tr>
+      <td style="font-weight:500;">{{ e.source_name }}</td>
+      <td style="font-size:12px;color:var(--text2);">{{ e.company.name if e.company else '—' }}</td>
+      <td style="font-weight:600;color:var(--green-text);">{{ e.inventory_year }}</td>
+      <td><span class="scope-pill s{{ e.scope }}">E{{ e.scope }}</span></td>
+      <td style="font-size:11px;color:var(--text2);">{{ e.category }}</td>
+      <td style="font-size:12px;">{{ e.quantity|round(2) }} {{ e.unit }}</td>
+      <td style="font-size:12px;">{{ e.emission_factor }}</td>
+      <td style="font-weight:700;color:var(--green-text);">{{ "%.4f"|format(e.total_co2e) }}</td>
+      <td style="font-size:11px;color:var(--text3);">{{ e.period or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-state">Nenhum lançamento encontrado para os filtros selecionados.</div>
+  {% endif %}
+</div>
+
+<script>
+const GREEN = '#2DBD8F', BLUE = '#378ADD', AMBER = '#BA7517', YELLOW = '#E8C840';
+const PALETTE = ['#2DBD8F','#378ADD','#BA7517','#E8C840','#9B59B6','#E74C3C','#1ABC9C','#F39C12','#2ECC71','#3498DB'];
+
+{% if total > 0 %}
+// Pizza: escopos
+new Chart(document.getElementById('chartEscopos'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Escopo 1','Escopo 2','Escopo 3'],
+    datasets: [{ data: [{{ scope_totals[1] }}, {{ scope_totals[2] }}, {{ scope_totals[3] }}],
+      backgroundColor: [GREEN, BLUE, AMBER], borderWidth: 3, borderColor: '#fff' }]
+  },
+  options: { responsive:true, maintainAspectRatio:false, cutout:'62%',
+    plugins: { legend: { position:'bottom', labels:{ font:{size:11}, padding:12 } } } }
+});
+
+// Pizza: clientes
+const clientLabels = [{% for n,v in company_totals.items() %}'{{ n }}',{% endfor %}];
+const clientData   = [{% for n,v in company_totals.items() %}{{ v }},{% endfor %}];
+new Chart(document.getElementById('chartClientes'), {
+  type: 'doughnut',
+  data: { labels: clientLabels,
+    datasets: [{ data: clientData, backgroundColor: PALETTE, borderWidth: 3, borderColor: '#fff' }]
+  },
+  options: { responsive:true, maintainAspectRatio:false, cutout:'62%',
+    plugins: { legend: { position:'bottom', labels:{ font:{size:11}, padding:10 } } } }
+});
+
+// Barras: categorias
+const catEntries = [{% for cat,val in category_totals.items()|sort(attribute='1',reverse=True) %}['{{ cat }}', {{ val }}],{% endfor %}];
+new Chart(document.getElementById('chartCategorias'), {
+  type: 'bar',
+  data: {
+    labels: catEntries.map(x => x[0].length > 28 ? x[0].slice(0,28)+'…' : x[0]),
+    datasets: [{ label:'tCO₂e', data: catEntries.map(x=>x[1]),
+      backgroundColor: AMBER+'CC', borderColor: AMBER, borderWidth:1.5, borderRadius:5 }]
+  },
+  options: { responsive:true, maintainAspectRatio:false, indexAxis:'y',
+    plugins:{ legend:{display:false} },
+    scales:{ x:{ ticks:{callback:v=>v.toFixed(2)+'t'}, grid:{color:'rgba(0,0,0,.05)'} }, y:{grid:{display:false}} } }
+});
+{% endif %}
+
+// Linha: evolução anual (só se houver múltiplos anos)
+{% if all_years|length > 1 and not sel_year %}
+// Calcular totais por ano por escopo a partir dos dados da tabela
+const emissionsData = [
+  {% for e in emissions %}
+  { year: {{ e.inventory_year }}, scope: {{ e.scope }}, co2: {{ e.total_co2e }} },
+  {% endfor %}
+];
+const yearsSet = [...new Set(emissionsData.map(x=>x.year))].sort();
+function sumBy(yr, sc){ return emissionsData.filter(x=>x.year===yr&&x.scope===sc).reduce((a,x)=>a+x.co2,0); }
+new Chart(document.getElementById('chartAnual'), {
+  type: 'line',
+  data: {
+    labels: yearsSet,
+    datasets: [
+      { label:'Escopo 1', data: yearsSet.map(y=>sumBy(y,1)), borderColor:GREEN, backgroundColor:GREEN+'20', tension:.4, fill:true, pointRadius:5, pointBackgroundColor:GREEN },
+      { label:'Escopo 2', data: yearsSet.map(y=>sumBy(y,2)), borderColor:BLUE, backgroundColor:BLUE+'20', tension:.4, fill:true, pointRadius:5, pointBackgroundColor:BLUE },
+      { label:'Escopo 3', data: yearsSet.map(y=>sumBy(y,3)), borderColor:AMBER, backgroundColor:AMBER+'20', tension:.4, fill:true, pointRadius:5, pointBackgroundColor:AMBER },
+    ]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ position:'bottom', labels:{font:{size:11}, padding:14} } },
+    scales:{ y:{ ticks:{callback:v=>v.toFixed(2)+'t'}, grid:{color:'rgba(0,0,0,.05)'} }, x:{grid:{display:false}} } }
+});
+{% endif %}
+</script>
+{% endblock %}

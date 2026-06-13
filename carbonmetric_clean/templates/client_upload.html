@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Enviar dados{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><div class="page-title">Enviar dados</div><div class="page-sub">Compartilhe informações com a consultoria</div></div>
+  <a href="{{ url_for('client_dashboard') }}" class="btn btn-secondary btn-sm">← Voltar</a>
+</div>
+<div class="card" style="max-width:560px;">
+  <form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+      <label class="form-label">Tipo de dado</label>
+      <select class="form-input" name="data_type">
+        <option>Consumo de combustíveis (Escopo 1)</option>
+        <option>Faturas de energia elétrica (Escopo 2)</option>
+        <option>Lista de fornecedores (Escopo 3)</option>
+        <option>Relatório de frotas</option>
+        <option>Dados de viagens corporativas</option>
+        <option>Outro / complementar</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observações</label>
+      <input class="form-input" type="text" name="notes" placeholder="Ex: Dados do 1º semestre — restante em breve">
+    </div>
+    <div style="border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;margin-bottom:14px;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+      <div style="font-size:13px;color:var(--text2);">Arraste arquivos aqui ou clique para selecionar</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">.xlsx · .csv · .pdf · máx. 20 MB</div>
+    </div>
+    <div style="background:var(--green-light);border-radius:8px;padding:10px 13px;font-size:12px;color:var(--green-text);margin-bottom:16px;">
+      Os dados serão recebidos pela equipe da consultoria e processados em até 2 dias úteis.
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <a href="{{ url_for('client_dashboard') }}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">Enviar para consultoria</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

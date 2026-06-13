@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Usuários{% endblock %}
+{% block content %}
+<style>
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;}
+  .modal-bg.open{display:flex;}
+  .modal-box{background:var(--surface);border-radius:14px;padding:24px;width:100%;max-width:480px;border:1px solid var(--border);max-height:90vh;overflow-y:auto;}
+  .modal-title{font-size:16px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+  .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+  .form-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+</style>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Usuários & acessos</div>
+    <div class="page-sub">Gerencie equipe da consultoria e usuários clientes</div>
+  </div>
+  <button class="btn btn-primary btn-sm" onclick="openNew()">+ Novo usuário</button>
+</div>
+
+<div class="metrics">
+  <div class="metric total"><div class="metric-label">Total</div><div class="metric-value">{{ users|length }}</div><div class="metric-unit">usuários ativos</div></div>
+  <div class="metric s1"><div class="metric-label">Administradores</div><div class="metric-value">{{ users|selectattr('role','eq','admin')|list|length }}</div><div class="metric-unit">CarbonMetric</div></div>
+  <div class="metric s2"><div class="metric-label">Clientes</div><div class="metric-value">{{ users|selectattr('role','eq','client')|list|length }}</div><div class="metric-unit">vinculados</div></div>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>Usuário</th><th>E-mail</th><th>Função</th><th>Telefone</th><th>Perfil</th><th>Empresa</th><th>Cadastro</th><th>Ações</th></tr>
+    </thead>
+    <tbody>
+    {% for u in users %}
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div class="avatar {{ 'avatar-admin' if u.role=='admin' else 'avatar-client' }}" style="width:30px;height:30px;font-size:11px;">{{ u.name[:2].upper() }}</div>
+          <span style="font-weight:600;">{{ u.name }}</span>
+        </div>
+      </td>
+      <td style="font-size:12px;color:var(--text2);">{{ u.email }}</td>
+      <td style="font-size:12px;color:var(--text2);">{{ u.job_title or '—' }}</td>
+      <td><span class="role-badge {{ 'role-badge-admin' if u.role=='admin' else 'role-badge-client' }}">{{ 'Admin' if u.role=='admin' else 'Cliente' }}</span></td>
+      <td style="font-size:12px;color:var(--text2);">{{ u.company.name if u.company else '— CarbonMetric —' }}</td>
+      <td>
+        {% if u.role == 'admin' %}
+          <span style="font-size:11px;color:var(--text3);">Todos</span>
+        {% else %}
+          {% for s in (u.scope_access or '123')|list %}
+            <span class="scope-pill s{{ s }}" style="margin-right:2px;">E{{ s }}</span>
+          {% endfor %}
+        {% endif %}
+      </td>
+      <td style="font-size:11px;color:var(--text3);">{{ u.created_at.strftime('%d/%m/%Y') }}</td>
+      <td>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-secondary btn-sm"
+            onclick="openEdit({{ u.id }},'{{ u.name|replace("'","") }}','{{ u.email }}','{{ u.role }}','{{ u.job_title or "" }}','{{ u.phone or "" }}',{{ u.company_id or 'null' }},'{{ u.scope_access or "123" }}')">
+            Editar
+          </button>
+          {% if u.id != current_user.id %}
+          <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}" onsubmit="return confirm('Remover {{ u.name }}?')">
+            <button type="submit" class="btn btn-sm" style="background:var(--red-light);color:var(--red-text);border:1px solid #F7C1C1;">Remover</button>
+          </form>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- MODAL NOVO USUÁRIO -->
+<div class="modal-bg" id="modal-new">
+  <div class="modal-box">
+    <div class="modal-title">
+      <svg width="16" height="16" fill="none" stroke="var(--green)" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+      Novo usuário
+    </div>
+    <form method="POST" action="{{ url_for('create_user') }}">
+      <div class="form-grid2">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Nome completo *</label>
+          <input class="form-input" type="text" name="name" required placeholder="Nome completo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail *</label>
+          <input class="form-input" type="email" name="email" required placeholder="usuario@empresa.com.br">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha *</label>
+          <input class="form-input" type="password" name="password" required placeholder="Mínimo 8 caracteres">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função / Cargo</label>
+          <input class="form-input" type="text" name="job_title" placeholder="Ex: Gerente de Sustentabilidade">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone de contato</label>
+          <input class="form-input" type="tel" name="phone" placeholder="(11) 99999-9999">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de acesso *</label>
+          <select class="form-input" name="role" id="new-role" onchange="toggleCompany('new')">
+            <option value="client">Cliente — acesso ao próprio inventário</option>
+            <option value="admin">Administrador — acesso total (CarbonMetric)</option>
+          </select>
+        </div>
+        <div class="form-group" id="new-company-group">
+          <label class="form-label">Empresa vinculada *</label>
+          <select class="form-input" name="company_id">
+            <option value="">— Selecione —</option>
+            {% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+          <div class="form-hint">Obrigatório para perfil Cliente.</div>
+        </div>
+        <div class="form-group" id="new-scope-group" style="grid-column:1/-1;">
+          <label class="form-label">Escopos com acesso *</label>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1.5px solid var(--green);border-radius:8px;cursor:pointer;background:var(--green-light);font-size:13px;font-weight:500;color:var(--green-text);">
+              <input type="checkbox" name="scope_access" value="1" checked style="accent-color:var(--green);"> 🟢 Escopo 1 — Diretas
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1.5px solid var(--blue);border-radius:8px;cursor:pointer;background:var(--blue-light);font-size:13px;font-weight:500;color:var(--blue-text);">
+              <input type="checkbox" name="scope_access" value="2" checked style="accent-color:var(--blue);"> 🔵 Escopo 2 — Energia
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1.5px solid var(--amber);border-radius:8px;cursor:pointer;background:var(--amber-light);font-size:13px;font-weight:500;color:var(--amber-text);">
+              <input type="checkbox" name="scope_access" value="3" checked style="accent-color:var(--amber);"> 🟡 Escopo 3 — Cadeia
+            </label>
+          </div>
+          <div class="form-hint">Define quais escopos este cliente poderá visualizar e lançar dados. Administradores têm acesso total.</div>
+        </div>
+      </div>
+      <div style="background:var(--green-light);border-radius:7px;padding:9px 12px;font-size:12px;color:var(--green-text);margin-bottom:12px;border-left:3px solid var(--green);">
+        Administradores têm acesso completo à plataforma e a todos os clientes. Clientes veem apenas o inventário da própria empresa.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-new')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Criar usuário</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL EDITAR -->
+<div class="modal-bg" id="modal-edit">
+  <div class="modal-box">
+    <div class="modal-title">
+      <svg width="16" height="16" fill="none" stroke="var(--green)" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Editar usuário
+    </div>
+    <form method="POST" id="edit-form" action="">
+      <div class="form-grid2">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Nome completo *</label>
+          <input class="form-input" type="text" name="name" id="edit-name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail *</label>
+          <input class="form-input" type="email" name="email" id="edit-email" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nova senha</label>
+          <input class="form-input" type="password" name="password" placeholder="Deixe em branco para manter">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função / Cargo</label>
+          <input class="form-input" type="text" name="job_title" id="edit-job">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone</label>
+          <input class="form-input" type="tel" name="phone" id="edit-phone">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de acesso *</label>
+          <select class="form-input" name="role" id="edit-role" onchange="toggleCompany('edit')">
+            <option value="client">Cliente</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div class="form-group" id="edit-company-group">
+          <label class="form-label">Empresa vinculada</label>
+          <select class="form-input" name="company_id" id="edit-company">
+            <option value="">— Nenhuma —</option>
+            {% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1;" id="edit-scope-group">
+          <label class="form-label">Escopos com acesso</label>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+            <label style="display:flex;align-items:center;gap:6px;padding:7px 13px;border:1.5px solid var(--green);border-radius:8px;cursor:pointer;background:var(--green-light);font-size:12px;color:var(--green-text);">
+              <input type="checkbox" name="scope_access" value="1" id="edit-s1" style="accent-color:var(--green);"> 🟢 Escopo 1
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:7px 13px;border:1.5px solid var(--blue);border-radius:8px;cursor:pointer;background:var(--blue-light);font-size:12px;color:var(--blue-text);">
+              <input type="checkbox" name="scope_access" value="2" id="edit-s2" style="accent-color:var(--blue);"> 🔵 Escopo 2
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:7px 13px;border:1.5px solid var(--amber);border-radius:8px;cursor:pointer;background:var(--amber-light);font-size:12px;color:var(--amber-text);">
+              <input type="checkbox" name="scope_access" value="3" id="edit-s3" style="accent-color:var(--amber);"> 🟡 Escopo 3
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar alterações</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openNew(){ document.getElementById('modal-new').classList.add('open'); }
+function openEdit(id,name,email,role,job,phone,companyId,scopeAccess){
+  document.getElementById('edit-form').action = '/admin/usuarios/'+id+'/editar';
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-email').value = email;
+  document.getElementById('edit-role').value = role;
+  document.getElementById('edit-job').value = job;
+  document.getElementById('edit-phone').value = phone;
+  const sel = document.getElementById('edit-company');
+  sel.value = companyId !== null ? companyId : '';
+  const sa = scopeAccess || '123';
+  document.getElementById('edit-s1').checked = sa.includes('1');
+  document.getElementById('edit-s2').checked = sa.includes('2');
+  document.getElementById('edit-s3').checked = sa.includes('3');
+  toggleCompany('edit');
+  document.getElementById('modal-edit').classList.add('open');
+}
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function toggleCompany(prefix){
+  const role = document.getElementById(prefix+'-role').value;
+  const grp = document.getElementById(prefix+'-company-group');
+  if(grp) grp.style.display = role === 'admin' ? 'none' : 'flex';
+}
+document.querySelectorAll('.modal-bg').forEach(m => {
+  m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); });
+});
+toggleCompany('new');
+</script>
+{% endblock %}
